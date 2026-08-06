@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import ipaddress
 import logging
+import signal
 import socket
 import ssl
 import struct
@@ -123,7 +124,16 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    await Client(args.host, args.port, args.token, args.tun, args.fwmark).run()
+    client = Client(args.host, args.port, args.token, args.tun, args.fwmark)
+    task = asyncio.create_task(client.run())
+    # SIGTERM/SIGINT 时取消主任务，让 run() 的 finally 清理路由和 DNS
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, task.cancel)
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 if __name__ == "__main__":

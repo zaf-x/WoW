@@ -44,7 +44,6 @@ class Server:
                 data = await reader.readexactly(length)
 
                 packet = unpack(length_bytes + data)
-                logging.info(f"New packet: {packet}")
 
                 ret = await self.manage_packet(remote, packet)
                 if ret:
