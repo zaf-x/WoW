@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 import ipaddress
-import logging
 import asyncio
 import ssl
 from wow_common.protocol import unpack, PacketType, Authentication, AuthenticationResponse, ApplicationData, Ping, Pong  # type: ignore
 from wow_common.tun import Tun # type: ignore
 import uuid
+import rich
 
 @dataclass
 class Remote:
@@ -27,15 +27,19 @@ class Server:
         self.interface = interface
         self.ip_cnt = 2
 
+        self.running = True
+        self.remotes: set[Remote] = set()
+
     async def handle_stream(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         peer_addr = writer.get_extra_info("peername")
-        logging.info(f"New connection from {peer_addr}")
+        rich.print(f"[green]New connection from {peer_addr}[/green]")
         remote = Remote(uuid.uuid4().hex, False, None, reader, writer)
+        self.remotes.add(remote)
 
         try:
-            while True:
+            while self.running:
                 # 精确读取 4 字节长度头
                 length_bytes = await reader.readexactly(4)
                 length = int.from_bytes(length_bytes, "big")
@@ -51,16 +55,20 @@ class Server:
                 await writer.drain()
 
         except asyncio.IncompleteReadError:
-            logging.info(f"Client {peer_addr} disconnected")
+            rich.print(f"Client {peer_addr} disconnected")
         except Exception:
-            logging.exception(f"Unhandled exception from {peer_addr}")
+            rich.print(f"[red]E: Unhandled exception from {peer_addr}[/red]")
         finally:
-            if remote.tun is not None:
-                asyncio.get_running_loop().remove_reader(remote.tun.fileno())
-                remote.tun.teardown_nat()
-                remote.tun.close()
-                remote.tun = None
-            writer.close()
+            await self.teardown_remote(remote)
+
+    async def teardown_remote(self, remote: Remote):
+        if remote.tun is not None:
+            asyncio.get_running_loop().remove_reader(remote.tun.fileno())
+            remote.tun.teardown_nat()
+            remote.tun.close()
+            remote.tun = None
+        remote.writer.close()
+        await remote.writer.wait_closed()
 
     async def manage_packet(self, remote: Remote, packet: PacketType):
         if isinstance(packet, Authentication):
@@ -75,7 +83,7 @@ class Server:
             loop = asyncio.get_running_loop()
             loop.add_reader(remote.tun.fileno(), lambda: self.on_tun_readable(remote))
             self.ip_cnt += 1
-            client_ip = 0b00001010000010000000000000000000 | self.ip_cnt
+            client_ip = 0xA080000 | self.ip_cnt
             client_addr = str(ipaddress.IPv4Address(client_ip))
             remote.tun.add_route(f"{client_addr}/32")
             remote.tun.set_addr("10.8.0.1/24")
@@ -99,10 +107,16 @@ class Server:
             self.port,
             ssl=ssl_ctx,
         )
-        logging.info(f"Server listening on {self.host}:{self.port}")
+        rich.print(f"[green]Server listening on {self.host}:{self.port}[/green]")
 
         async with server:
             await server.serve_forever()
+
+    async def stop(self):
+        self.running = False
+        while self.remotes:
+            remote = self.remotes.pop()
+            await self.teardown_remote(remote)
 
     def on_tun_readable(self, remote: Remote):
         if remote.tun is None or remote.writer.is_closing():

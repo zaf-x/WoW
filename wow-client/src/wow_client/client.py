@@ -6,6 +6,13 @@ import socket
 import ipaddress
 import rich
 
+def human_size(size: float) -> str:
+    for unit in ["B", "KB", "MB", "GB", "TB", "PB"]:
+        if abs(size) < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} EB"
+
 class Client:
     def __init__(self, server_host: str, server_port: int, token: str, fwmark: int = 0x1):
         self.server_host = server_host
@@ -21,6 +28,9 @@ class Client:
         self.cidr = 0
         self.tun: Tun | None = None
         self.running: bool = True
+
+        self.uplink_d: int = 0
+        self.downlink_d: int = 0
 
         self.pending: asyncio.Queue[bytes] = asyncio.Queue()
 
@@ -66,6 +76,7 @@ class Client:
             pkt = await self.read_packet()
             if isinstance(pkt, ApplicationData):
                 self.tun.write(pkt.data)
+                self.downlink_d += len(pkt.data)
             await self.writer.drain()
         self.writer.close()
         await self.writer.wait_closed()
@@ -77,14 +88,15 @@ class Client:
             if not self.writer:
                 break
             self.writer.write(Ping().pack())
+            print("\033[2K",end="")
+            rich.print(f"[bold]Uplink data: {human_size(self.uplink_d)} Downlink data: {human_size(self.downlink_d)}[/bold]", end="\r")
             await self.writer.drain()
-            rich.print("Ping")
             await asyncio.sleep(5)
 
     async def stop(self):
         if not self.tun:
             return
-
+        rich.print("\n")
         rich.print("[yellow]Stopping[/yellow]")
         self.running = False
         self.tun.teardown_routing()
@@ -114,4 +126,5 @@ class Client:
                 break
 
             self.writer.write(ApplicationData(data).pack())
+            self.uplink_d += len(data)
             await self.writer.drain()
