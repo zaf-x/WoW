@@ -1,3 +1,5 @@
+"""Command-line entry point for the WoW VPN server."""
+
 import argparse
 import asyncio
 import logging
@@ -7,6 +9,15 @@ from .server import Server
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments, falling back to WOW_* environment variables.
+
+    Returns:
+        The parsed arguments namespace.
+
+    Raises:
+        SystemExit: If a required argument is missing or the token is not
+            a hex string (via ``parser.error``).
+    """
     parser = argparse.ArgumentParser(prog="wow-server", description="WoW VPN server")
     parser.add_argument("--host", default=os.environ.get("WOW_HOST", "0.0.0.0"),
                         help="listen address (default: 0.0.0.0, env WOW_HOST)")
@@ -38,6 +49,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the server until interrupted."""
     args = parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

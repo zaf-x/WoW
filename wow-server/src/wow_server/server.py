@@ -1,3 +1,5 @@
+"""WoW VPN server: accepts TLS clients, authenticates them and forwards tunnelled traffic."""
+
 from dataclasses import dataclass
 import ipaddress
 import asyncio
@@ -9,6 +11,16 @@ import rich
 
 @dataclass
 class Remote:
+    """Per-connection state for a connected client.
+
+    Attributes:
+        stream_id: Random hex identifier for the connection.
+        authorized: Whether the client has successfully authenticated.
+        tun: The TUN device created for this client, if any.
+        reader: Stream reader for the TLS connection.
+        writer: Stream writer for the TLS connection.
+    """
+
     stream_id: str
     authorized: bool
     tun: Tun | None
@@ -17,7 +29,33 @@ class Remote:
     writer: asyncio.StreamWriter
 
 class Server:
+    """WoW VPN server.
+
+    Listens for TLS connections, authenticates clients with a shared
+    128-bit token, creates a per-client TUN device with NAT, and shuttles
+    IP packets between each client's TUN device and its tunnel.
+
+    Attributes:
+        host: Listen address.
+        port: Listen port.
+        token: The shared 128-bit authentication token as an integer.
+        interface: Physical egress interface used for NAT.
+        masquerade: If True, silently drop bad authentication attempts
+            instead of replying with a failure (camouflage).
+    """
+
     def __init__(self, host: str, port: int, token: int, interface: str, cert: str, key: str, masquerade: bool = False):
+        """Initialize the server.
+
+        Args:
+            host: Listen address.
+            port: Listen port.
+            token: The shared 128-bit authentication token as an integer.
+            interface: Physical egress interface used for NAT, e.g. ``"ens5"``.
+            cert: Path to the TLS certificate file.
+            key: Path to the TLS private key file.
+            masquerade: Silently drop bad auth instead of replying.
+        """
         self.host = host
         self.port = port
         self.cert = cert
@@ -33,6 +71,12 @@ class Server:
     async def handle_stream(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        """Serve one client connection: read, dispatch and reply to packets until disconnect.
+
+        Args:
+            reader: Stream reader for the accepted TLS connection.
+            writer: Stream writer for the accepted TLS connection.
+        """
         peer_addr = writer.get_extra_info("peername")
         rich.print(f"[green]New connection from {peer_addr}[/green]")
         remote = Remote(uuid.uuid4().hex, False, None, reader, writer)
@@ -40,11 +84,11 @@ class Server:
 
         try:
             while self.running:
-                # 精确读取 4 字节长度头
+                # Read the 4-byte length header exactly.
                 length_bytes = await reader.readexactly(4)
                 length = int.from_bytes(length_bytes, "big")
 
-                # 精确读取 payload
+                # Read the payload exactly.
                 data = await reader.readexactly(length)
 
                 packet = unpack(length_bytes + data)
@@ -62,6 +106,11 @@ class Server:
             await self.teardown_remote(remote)
 
     async def teardown_remote(self, remote: Remote):
+        """Release all resources held by a client connection.
+
+        Args:
+            remote: The connection to tear down.
+        """
         if remote.tun is not None:
             asyncio.get_running_loop().remove_reader(remote.tun.fileno())
             remote.tun.teardown_nat()
@@ -71,6 +120,15 @@ class Server:
         await remote.writer.wait_closed()
 
     async def manage_packet(self, remote: Remote, packet: PacketType):
+        """Handle one decoded packet from a client.
+
+        Args:
+            remote: The connection the packet arrived on.
+            packet: The decoded packet.
+
+        Returns:
+            A response packet to send back, or None.
+        """
         if isinstance(packet, Authentication):
             if packet.token != self.token:
                 if not self.masquerade:
@@ -87,7 +145,7 @@ class Server:
             client_addr = str(ipaddress.IPv4Address(client_ip))
             remote.tun.add_route(f"{client_addr}/32")
             remote.tun.set_addr("10.8.0.1/24")
-            
+
             return AuthenticationResponse(True, client_ip, 24)
         if isinstance(packet, ApplicationData):
             if not remote.tun:
@@ -98,6 +156,7 @@ class Server:
             return Pong()
 
     async def serve(self) -> None:
+        """Start the TLS listener and serve clients forever."""
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_ctx.load_cert_chain(self.cert, self.key)
 
@@ -113,12 +172,18 @@ class Server:
             await server.serve_forever()
 
     async def stop(self):
+        """Stop the server and tear down all connected clients."""
         self.running = False
         while self.remotes:
             remote = self.remotes.pop()
             await self.teardown_remote(remote)
 
     def on_tun_readable(self, remote: Remote):
+        """Event-loop callback: read a reply packet from the client's TUN and send it down the tunnel.
+
+        Args:
+            remote: The connection whose TUN device became readable.
+        """
         if remote.tun is None or remote.writer.is_closing():
             return
         data = remote.tun.read()
