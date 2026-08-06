@@ -3,7 +3,7 @@ import ipaddress
 import logging
 import asyncio
 import ssl
-from wow_common.protocol import unpack, PacketType, Authentication, AuthenticationResponse, ApplicationData  # type: ignore
+from wow_common.protocol import unpack, PacketType, Authentication, AuthenticationResponse, ApplicationData, Ping, Pong  # type: ignore
 from wow_common.tun import Tun # type: ignore
 import uuid
 
@@ -86,6 +86,8 @@ class Server:
                 return
 
             remote.tun.write(packet.data)
+        if isinstance(packet, Ping):
+            return Pong()
 
     async def serve(self) -> None:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

@@ -42,3 +42,13 @@ Meaningless when `Success` is 0.
 ### Type 2 Application Data
 
 Just IP Data
+
+### Type 3 Ping
+
+No body. Sent by the client periodically (every 15s) to keep the TCP
+connection alive across NAT/firewall middleboxes and to detect dead
+connections.
+
+### Type 4 Pong
+
+No body. Sent by the server in reply to a Ping.

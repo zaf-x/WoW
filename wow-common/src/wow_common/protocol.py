@@ -6,6 +6,8 @@ class PacketType:
     AUTH = 0
     AUTH_RESP = 1
     APP_DATA = 2
+    PING = 3
+    PONG = 4
 
 
 @dataclass
@@ -83,6 +85,36 @@ class ApplicationData(PacketType):
         return cls(data[5:5 + body_len])
 
 
+@dataclass
+class Ping(PacketType):
+    def pack(self) -> bytes:
+        return struct.pack("!IB", 1, PacketType.PING)
+
+    @classmethod
+    def unpack(cls, data: bytes) -> "Ping":
+        if len(data) < 5:
+            raise ValueError("Ping packet too short")
+        payload_len, pkt_type = struct.unpack("!IB", data[:5])
+        if pkt_type != PacketType.PING or payload_len != 1:
+            raise ValueError("Not a Ping packet")
+        return cls()
+
+
+@dataclass
+class Pong(PacketType):
+    def pack(self) -> bytes:
+        return struct.pack("!IB", 1, PacketType.PONG)
+
+    @classmethod
+    def unpack(cls, data: bytes) -> "Pong":
+        if len(data) < 5:
+            raise ValueError("Pong packet too short")
+        payload_len, pkt_type = struct.unpack("!IB", data[:5])
+        if pkt_type != PacketType.PONG or payload_len != 1:
+            raise ValueError("Not a Pong packet")
+        return cls()
+
+
 def unpack(data: bytes):
     if len(data) < 5:
         raise ValueError("Data too short to unpack")
@@ -95,5 +127,9 @@ def unpack(data: bytes):
         return AuthenticationResponse.unpack(data)
     elif pkt_type == PacketType.APP_DATA:
         return ApplicationData.unpack(data)
+    elif pkt_type == PacketType.PING:
+        return Ping.unpack(data)
+    elif pkt_type == PacketType.PONG:
+        return Pong.unpack(data)
     else:
         raise ValueError(f"Unknown packet type: {pkt_type}")
