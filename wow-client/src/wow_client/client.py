@@ -1,209 +1,117 @@
-from __future__ import annotations
-
-import argparse
 import asyncio
-import ipaddress
-import logging
-import signal
-import socket
 import ssl
-import struct
-import time
-from collections.abc import Callable
-from typing import Any
-
-from wow_common.protocol import (  # type: ignore
-    ApplicationData,
-    Authentication,
-    AuthenticationResponse,
-    PacketType,
-    Ping,
-)
-from wow_common.tun import Tun  # type: ignore
-
-logger = logging.getLogger(__name__)
-
-
-async def read_packet(reader: asyncio.StreamReader) -> tuple[int, bytes]:
-    header = await reader.readexactly(5)
-    payload_len, pkt_type = struct.unpack("!IB", header)
-    body = await reader.readexactly(payload_len - 1)
-    return pkt_type, body
-
+from wow_common.protocol import ApplicationData, Authentication, AuthenticationResponse, Ping, unpack  # type: ignore
+from wow_common.tun import Tun # type: ignore
+import socket
+import ipaddress
+import rich
 
 class Client:
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        token: int,
-        tun_name: str = "wow0",
-        fwmark: int = 0x1,
-        on_state: "Callable[..., None] | None" = None,
-    ) -> None:
-        self.host = host
-        self.port = port
-        self.token = token
-        self.tun_name = tun_name
+    def __init__(self, server_host: str, server_port: int, token: str, fwmark: int = 0x1):
+        self.server_host = server_host
+        self.server_port = server_port
+        self.reader: asyncio.StreamReader | None = None
+        self.writer: asyncio.StreamWriter | None = None
+        self.token: int = int(token, 16)
         self.fwmark = fwmark
-        self.on_state = on_state
-        self.state = "disconnected"
-        self.tunnel_ip: str | None = None
-        self.up_bytes = 0
-        self.down_bytes = 0
-        self._last_rx = 0.0
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_MARK, self.fwmark)
+        self.sock.setblocking(False)
+        self.ip = ""
+        self.cidr = 0
+        self.tun: Tun | None = None
+        self.running: bool = True
 
-    async def _heartbeat(self, writer: asyncio.StreamWriter, interval: float, timeout: float) -> None:
-        """定期发 PING 保活；超过 timeout 没收到任何包就判定连接已死，主动断开。
+        self.pending: asyncio.Queue[bytes] = asyncio.Queue()
 
-        跨越 NAT/GFW 的 TCP 空闲连接会被中间设备静默丢弃，必须靠应用层
-        心跳维持映射并检测死连接。
-        """
-        while True:
-            await asyncio.sleep(interval)
-            try:
-                writer.write(Ping().pack())
-                await writer.drain()
-            except ConnectionError:
-                return
-            if time.monotonic() - self._last_rx > timeout:
-                logger.warning("No packet from server for %.0fs, connection presumed dead", timeout)
-                writer.transport.abort()
-
-    def _set_state(self, state: str, **info: dict[str, Any]) -> None:
-        self.state = state
-        if state == "connected":
-            self.tunnel_ip = info.get("tunnel_ip")
-        elif state == "disconnected":
-            self.tunnel_ip = None
-        if self.on_state:
-            self.on_state(state, info)
-
-    async def _connect(self, ssl_ctx: ssl.SSLContext):
-        # 自建 socket 并打 SO_MARK，配合 ip rule 使 VPN 自身流量不进 TUN，避免环路
-        sock = socket.socket()
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_MARK, self.fwmark)
-        sock.setblocking(False)
+    async def run(self):
+        rich.print(f"[bold]Client started[/bold]")
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
         loop = asyncio.get_running_loop()
-        await loop.sock_connect(sock, (self.host, self.port))
-        return await asyncio.open_connection(sock=sock, ssl=ssl_ctx, server_hostname=self.host)
+        await loop.sock_connect(self.sock, (self.server_host, self.server_port))
+        rich.print(f"[green]Connected[/green]")
 
-    async def run(self) -> None:
-        self._set_state("connecting", host=self.host, port=self.port)
-        ssl_ctx = ssl.create_default_context()
-        ssl_ctx.check_hostname = False
-        ssl_ctx.verify_mode = ssl.CERT_NONE  # 自签名证书，跳过校验
+        self.reader, self.writer = await asyncio.open_connection(sock=self.sock, ssl=ssl_context, server_hostname=self.server_host)
 
-        reader, writer = await self._connect(ssl_ctx)
-        logger.info("Connected to %s:%d", self.host, self.port)
+        auth = Authentication(self.token)
+        self.writer.write(auth.pack())
+        await self.writer.drain()
 
-        writer.write(Authentication(self.token).pack())
-        await writer.drain()
+        auth_resp = await self.read_packet()
+        if not isinstance(auth_resp, AuthenticationResponse):
+            raise ValueError("Invalid server protocol")
 
-        pkt_type, body = await read_packet(reader)
-        if pkt_type != PacketType.AUTH_RESP:
-            raise RuntimeError(f"Expected AUTH_RESP, got type {pkt_type}")
-        resp = AuthenticationResponse.unpack(struct.pack("!IB", len(body) + 1, pkt_type) + body)
-        if not resp.success:
-            raise PermissionError("Authentication failed")
-        addr = f"{ipaddress.IPv4Address(resp.ip_addr)}/{resp.ip_cidr}"
-        logger.info("Authenticated, assigned address %s", addr)
-        self._set_state("connected", tunnel_ip=addr, host=self.host, port=self.port)
+        if not auth_resp.success:
+            raise ValueError("Invalid token")
 
-        tun = Tun(self.tun_name)
+        ip = auth_resp.ip_addr
+        self.cidr = auth_resp.ip_cidr
+
+        rich.print("[green]Authenticated[/green]")
+
+        self.ip_addr = ipaddress.IPv4Address(ip)
+        self.tun = Tun("wowtun")
+        self.tun.up()
+        self.tun.set_addr(f"{self.ip_addr}/{self.cidr}")
+        self.tun.setup_routing(self.fwmark, bypass_ip=self.server_host)
+        self.tun.setup_dns()
+        rich.print("[green]TUN setup finished[/green]")
+
+        loop.add_reader(self.tun.fileno(), self.manage_new_data)
+        asyncio.create_task(self.send_data_loop())
+        asyncio.create_task(self.ping_loop())
+        while self.running:
+            pkt = await self.read_packet()
+            if isinstance(pkt, ApplicationData):
+                self.tun.write(pkt.data)
+            await self.writer.drain()
+        self.writer.close()
+        await self.writer.wait_closed()
+        self.writer = None
+        self.reader = None
+
+    async def ping_loop(self):
+        while self.running:
+            if not self.writer:
+                break
+            self.writer.write(Ping().pack())
+            await self.writer.drain()
+            rich.print("Ping")
+            await asyncio.sleep(5)
+
+    async def stop(self):
+        if not self.tun:
+            return
+
+        rich.print("[yellow]Stopping[/yellow]")
+        self.running = False
+        self.tun.teardown_routing()
+        self.tun.teardown_dns()
+        self.tun.close()
         loop = asyncio.get_running_loop()
-        try:
-            tun.set_addr(addr)
-            tun.up()
-            tun.setup_routing(self.fwmark, bypass_ip=self.host)
-            tun.setup_dns()
+        loop.remove_reader(self.tun.fileno())
+        rich.print("Stopped")
 
-            def on_tun_readable() -> None:
-                data = tun.read()
-                if data:
-                    self.up_bytes += len(data)
-                    writer.write(ApplicationData(data).pack())
+    async def read_packet(self):
+        if not self.reader:
+            raise ValueError("not connected yet")
+        length = await self.reader.readexactly(4)
+        data = await self.reader.readexactly(int.from_bytes(length, "big"))
+        return unpack(length + data)
 
-            loop.add_reader(tun.fileno(), on_tun_readable)
-            self._last_rx = time.monotonic()
-            hb_task = asyncio.create_task(self._heartbeat(writer, interval=15, timeout=45))
-            try:
-                while True:
-                    pkt_type, body = await read_packet(reader)
-                    self._last_rx = time.monotonic()
-                    if pkt_type == PacketType.APP_DATA:
-                        self.down_bytes += len(body)
-                        tun.write(body)
-                    elif pkt_type in (PacketType.PING, PacketType.PONG):
-                        pass  # 心跳包，_last_rx 已更新
-                    else:
-                        logger.warning("Unexpected packet type %d, ignored", pkt_type)
-            finally:
-                hb_task.cancel()
-        except (asyncio.IncompleteReadError, ConnectionError):
-            logger.info("Connection closed")
-        finally:
-            loop.remove_reader(tun.fileno())
-            tun.teardown_dns()
-            tun.teardown_routing()
-            tun.close()
-            writer.close()
-            await writer.wait_closed()
-            self._set_state("disconnected")
+    def manage_new_data(self):
+        if not self.tun or not self.writer:
+            return
+        data = self.tun.read()
+        self.pending.put_nowait(data)
 
+    async def send_data_loop(self):
+        while self.running:
+            data = await self.pending.get()
+            if not self.writer:
+                break
 
-def parse_token(text: str) -> int:
-    value = int(text, 16)
-    if value.bit_length() > 128:
-        raise ValueError("Token must fit in 128 bits (16 bytes)")
-    return value
-
-
-async def main() -> None:
-    logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(description="WoW VPN client")
-    parser.add_argument("host", nargs="?")
-    parser.add_argument("port", nargs="?", type=int)
-    parser.add_argument("token", nargs="?", type=parse_token, help="128-bit auth token (hex)")
-    parser.add_argument("--tun", default="wow0", help="TUN device name (default: wow0)")
-    parser.add_argument(
-        "--fwmark",
-        type=lambda s: int(s, 0),
-        default=0x1,
-        help="SO_MARK/fwmark value for the VPN's own traffic (default: 0x1)",
-    )
-    parser.add_argument(
-        "--daemon",
-        action="store_true",
-        help="run as daemon exposing a JSON-lines management port on 127.0.0.1",
-    )
-    parser.add_argument("--mgmt-port", type=int, default=7891, help="management port (default: 7891)")
-    args = parser.parse_args()
-
-    task: asyncio.Task
-    if args.daemon:
-        from .daemon import Daemon
-
-        autoconnect = None
-        if args.host and args.port and args.token is not None:
-            autoconnect = (args.host, args.port, args.token)
-        task = asyncio.create_task(
-            Daemon(args.tun, args.fwmark, args.mgmt_port).run(autoconnect)
-        )
-    else:
-        if not (args.host and args.port and args.token is not None):
-            parser.error("host/port/token are required unless --daemon is given")
-        client = Client(args.host, args.port, args.token, args.tun, args.fwmark)
-        task = asyncio.create_task(client.run())
-    # SIGTERM/SIGINT 时取消主任务，让 finally 清理路由和 DNS
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, task.cancel)
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+            self.writer.write(ApplicationData(data).pack())
+            await self.writer.drain()
