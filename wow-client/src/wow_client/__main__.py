@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import ssl
 from .client import Client
 
 async def main():
@@ -23,8 +24,15 @@ async def main():
 
     try:
         await client.run()
+    except (asyncio.IncompleteReadError, ConnectionError, ssl.SSLError, OSError) as exc:
+        # Server dropped the connection or the TLS handshake failed; report it
+        # without a traceback. KeyboardInterrupt is handled outside asyncio.run.
+        print(f"Connection failed: {exc}")
     finally:
         await client.stop()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
