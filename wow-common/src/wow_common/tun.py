@@ -126,14 +126,12 @@ class Tun:
             check=False,
         )
         subprocess.run(
-            ["ip", "rule", "del", "not", "fwmark", hex(self._fwmark), "lookup", str(self._table),
-             "priority", str(self._table * 10 + 1)],
+            ["ip", "rule", "del", "not", "fwmark", hex(self._fwmark), "lookup", str(self._table)],
             check=False,
         )
         if getattr(self, "_bypass_ip", None):
             subprocess.run(
-                ["ip", "rule", "del", "to", self._bypass_ip, "lookup", "main",
-                 "priority", str(self._table * 10)],
+                ["ip", "rule", "del", "to", self._bypass_ip, "lookup", "main"], # type: ignore
                 check=False,
             )
 

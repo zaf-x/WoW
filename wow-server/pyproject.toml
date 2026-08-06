@@ -29,6 +29,9 @@ dependencies = [
   "aioquic"
 ]
 
+[project.scripts]
+wow-server = "wow_server.__main__:main"
+
 [project.urls]
 Documentation = "https://github.com/zaf-x/wow-server#readme"
 Issues = "https://github.com/zaf-x/wow-server/issues"
