@@ -28,7 +28,7 @@ class Server:
         self.ip_cnt = 2
 
         self.running = True
-        self.remotes: set[Remote] = set()
+        self.remotes: list[Remote] = []
 
     async def handle_stream(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -36,7 +36,7 @@ class Server:
         peer_addr = writer.get_extra_info("peername")
         rich.print(f"[green]New connection from {peer_addr}[/green]")
         remote = Remote(uuid.uuid4().hex, False, None, reader, writer)
-        self.remotes.add(remote)
+        self.remotes.append(remote)
 
         try:
             while self.running:
