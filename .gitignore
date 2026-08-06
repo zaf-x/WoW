@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# 虚拟环境
+venv/
+.venv/
+
+# 编辑器
+.vscode/
+.idea/
+
+# 本地配置/密钥
+*.conf
+wow-client.conf
+wow-server.conf
