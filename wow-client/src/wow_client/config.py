@@ -108,7 +108,7 @@ def save_profile(name: str, profile: Profile, path: Path = CONFIG_PATH):
     else:
         raw = {}
 
-    raw.setdefault("profiles", {})[name] = {
+    raw.setdefault("profiles", {})[name] = { # type: ignore
         "host": profile.host,
         "port": profile.port,
         "token": profile.token,

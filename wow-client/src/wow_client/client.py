@@ -2,14 +2,20 @@
 
 import asyncio
 import ssl
-from wow_common.protocol import ApplicationData, Authentication, AuthenticationResponse, Ping, unpack  # type: ignore
+from wow_common.protocol import ApplicationData, Authentication, AuthenticationResponse, Ping, Pong, unpack  # type: ignore
 from wow_common.tun import Tun # type: ignore
 import socket
+import time
+import os
+import struct
 import ipaddress
 import rich
 from rich.panel import Panel
 from rich.live import Live
 from rich.table import Table
+
+# Public host pinged over ICMP to measure the client-to-internet delay through the tunnel.
+INTERNET_PROBE_HOST = "1.1.1.1"
 
 def human_size(size: float) -> str:
     """Format a byte count as a human-readable string.
@@ -25,6 +31,52 @@ def human_size(size: float) -> str:
             return f"{size:.2f} {unit}"
         size /= 1024
     return f"{size:.2f} EB"
+
+def format_delay(delay: float | None) -> str:
+    """Format a delay in seconds as a millisecond string.
+
+    Args:
+        delay: Delay in seconds, or None if it has not been measured yet.
+
+    Returns:
+        A string like ``"12.3 ms"``, or ``"N/A"`` when unmeasured.
+    """
+    if delay is None:
+        return "N/A"
+    return f"{delay * 1000:.1f} ms"
+
+def _icmp_checksum(data: bytes) -> int:
+    """Compute the standard internet checksum over ``data``."""
+    if len(data) % 2:
+        data += b"\x00"
+    total = sum(struct.unpack(f"!{len(data) // 2}H", data))
+    total = (total >> 16) + (total & 0xFFFF)
+    total += total >> 16
+    return ~total & 0xFFFF
+
+def build_icmp_echo(identifier: int, sequence: int) -> bytes:
+    """Build an ICMP echo-request packet with the given id and sequence number."""
+    payload = b"wow-vpn-probe"
+    header = struct.pack("!BBHHH", 8, 0, 0, identifier, sequence)
+    header = struct.pack("!BBHHH", 8, 0, _icmp_checksum(header + payload), identifier, sequence)
+    return header + payload
+
+def is_echo_reply(data: bytes, identifier: int, sequence: int) -> bool:
+    """Return True if ``data`` is the ICMP echo reply matching our probe.
+
+    Args:
+        data: A full IPv4 packet as received on a raw ICMP socket.
+        identifier: The ICMP id our probe used.
+        sequence: The ICMP sequence number our probe used.
+    """
+    if len(data) < 20:
+        return False
+    ihl = (data[0] & 0x0F) * 4
+    icmp = data[ihl:]
+    if len(icmp) < 8:
+        return False
+    pkt_type, code, _, reply_id, reply_seq = struct.unpack("!BBHHH", icmp[:8])
+    return pkt_type == 0 and code == 0 and reply_id == identifier and reply_seq == sequence
 
 class Client:
     """WoW VPN client.
@@ -73,6 +125,10 @@ class Client:
         self.uplink_d: int = 0
         self.downlink_d: int = 0
 
+        self.server_delay: float | None = None
+        self.internet_delay: float | None = None
+        self.last_ping_at: float | None = None
+
         self.pending: asyncio.Queue[bytes] = asyncio.Queue()
         # Instantiate a rich Console object for rendering.
         self.console = rich.console.Console()
@@ -106,6 +162,10 @@ class Client:
         # Live traffic counters.
         table.add_row("Uplink Data:", f"[bold green]{human_size(self.uplink_d)}[/bold green]")
         table.add_row("Downlink Data:", f"[bold blue]{human_size(self.downlink_d)}[/bold blue]")
+
+        # Latency measurements, "N/A" until the first round completes.
+        table.add_row("Client to Server Delay:", f"[yellow]{format_delay(self.server_delay)}[/yellow]")
+        table.add_row("Client to Internet Delay:", f"[yellow]{format_delay(self.internet_delay)}[/yellow]")
 
         return Panel(
             table,
@@ -174,6 +234,7 @@ class Client:
             loop.add_reader(self.tun.fileno(), self.manage_new_data)
             asyncio.create_task(self.send_data_loop())
             asyncio.create_task(self.ping_loop())
+            asyncio.create_task(self.internet_delay_loop())
 
             while self.running:
                 pkt = await self.read_packet()
@@ -182,6 +243,10 @@ class Client:
                     self.downlink_d += len(pkt.data)
                     # Downlink data received; refresh the panel with the latest counters.
                     self.update_panel("Running", "green")
+                elif isinstance(pkt, Pong):
+                    if self.last_ping_at is not None:
+                        self.server_delay = time.monotonic() - self.last_ping_at
+                        self.update_panel("Running", "green")
                 await self.writer.drain()
 
             self.writer.close()
@@ -190,15 +255,65 @@ class Client:
             self.reader = None
 
     async def ping_loop(self):
-        """Send a Ping every 5 seconds to keep the tunnel alive."""
+        """Send a Ping every 5 seconds to keep the tunnel alive.
+
+        Records the send time so the Pong handler in the main loop can
+        compute the client-to-server delay.
+        """
         while self.running:
             if not self.writer:
                 break
+            self.last_ping_at = time.monotonic()
             self.writer.write(Ping().pack())
             await self.writer.drain()
             # Refresh the panel on heartbeats too, so the UI does not look frozen when there is no traffic.
             self.update_panel("Running (Ping Sent)", "green")
             await asyncio.sleep(5)
+
+    async def internet_delay_loop(self):
+        """Measure the client-to-internet delay through the tunnel every 5 seconds.
+
+        Sends an ICMP echo request (ping) to a public host via a raw socket;
+        the socket carries no fwmark, so the probe is routed through the TUN
+        like ordinary traffic.
+        """
+        identifier = os.getpid() & 0xFFFF
+        sequence = 0
+        while self.running:
+            sequence = (sequence + 1) & 0xFFFF
+            self.internet_delay = await self._icmp_ping(identifier, sequence)
+            if self.running:
+                self.update_panel("Running", "green")
+            await asyncio.sleep(5)
+
+    async def _icmp_ping(self, identifier: int, sequence: int) -> float | None:
+        """Send one ICMP echo request to the probe host and time the reply.
+
+        Uses a raw socket, which requires root — the client already runs as
+        root for the TUN device.
+
+        Returns:
+            The round-trip time in seconds, or None on timeout or error.
+        """
+        loop = asyncio.get_running_loop()
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+            sock.setblocking(False)
+        except OSError:
+            return None
+        try:
+            await loop.sock_sendto(sock, build_icmp_echo(identifier, sequence), (INTERNET_PROBE_HOST, 0))
+            start = time.monotonic()
+            deadline = start + 5
+            while True:
+                # Keep consuming until the reply matching our id/sequence arrives.
+                data, _ = await asyncio.wait_for(loop.sock_recvfrom(sock, 1024), timeout=deadline - time.monotonic())
+                if is_echo_reply(data, identifier, sequence):
+                    return time.monotonic() - start
+        except (OSError, asyncio.TimeoutError):
+            return None
+        finally:
+            sock.close()
 
     async def stop(self):
         """Tear down routing, DNS and the TUN device, and stop the main loop."""
