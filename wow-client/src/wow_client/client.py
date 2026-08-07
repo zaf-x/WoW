@@ -1,6 +1,7 @@
 """WoW VPN client: connects to the server, sets up the TUN device and forwards traffic."""
 
 import asyncio
+from collections import deque
 import ssl
 from wow_common.protocol import ApplicationData, Authentication, AuthenticationResponse, Ping, Pong, unpack  # type: ignore
 from wow_common.tun import Tun # type: ignore
@@ -16,6 +17,13 @@ from rich.table import Table
 
 # Public host pinged over ICMP to measure the client-to-internet delay through the tunnel.
 INTERNET_PROBE_HOST = "1.1.1.1"
+
+# Rolling window (seconds) over which the uplink/downlink transfer rates are averaged.
+RATE_WINDOW_SECONDS = 5.0
+
+# Minimum interval between transfer-rate samples, so that bursts of packets do not
+# flood the rolling history with near-identical snapshots.
+RATE_SAMPLE_INTERVAL = 0.25
 
 def human_size(size: float) -> str:
     """Format a byte count as a human-readable string.
@@ -44,6 +52,38 @@ def format_delay(delay: float | None) -> str:
     if delay is None:
         return "N/A"
     return f"{delay * 1000:.1f} ms"
+
+def transfer_rate(samples: deque[tuple[float, int]], total: int) -> float:
+    """Compute the average transfer rate over the recent rolling window.
+
+    Appends a fresh ``(now, total)`` snapshot (throttled to
+    ``RATE_SAMPLE_INTERVAL``) and averages the byte delta over the
+    snapshots retained within ``RATE_WINDOW_SECONDS``.
+
+    Args:
+        samples: Deque of recent ``(timestamp, cumulative bytes)``
+            snapshots for one direction. Mutated in place.
+        total: Current cumulative byte count for that direction.
+
+    Returns:
+        Bytes per second averaged over the window, or ``0.0`` when there
+        is not enough data yet.
+    """
+    now = time.monotonic()
+    if not samples or now - samples[-1][0] >= RATE_SAMPLE_INTERVAL:
+        samples.append((now, total))
+    else:
+        # Refresh the newest snapshot's total so a just-finished burst keeps
+        # counting while the window slides.
+        samples[-1] = (samples[-1][0], total)
+    while samples and now - samples[0][0] > RATE_WINDOW_SECONDS:
+        samples.popleft()
+    if len(samples) < 2:
+        return 0.0
+    elapsed = now - samples[0][0]
+    if elapsed <= 0:
+        return 0.0
+    return (total - samples[0][1]) / elapsed
 
 def _icmp_checksum(data: bytes) -> int:
     """Compute the standard internet checksum over ``data``."""
@@ -125,6 +165,10 @@ class Client:
         self.uplink_d: int = 0
         self.downlink_d: int = 0
 
+        # Rolling (timestamp, cumulative bytes) snapshots used to compute transfer rates.
+        self._uplink_samples: deque[tuple[float, int]] = deque()
+        self._downlink_samples: deque[tuple[float, int]] = deque()
+
         self.server_delay: float | None = None
         self.internet_delay: float | None = None
         self.last_ping_at: float | None = None
@@ -159,9 +203,9 @@ class Client:
         else:
             table.add_row("Assigned IP:", "[dim]Not Assigned[/dim]")
 
-        # Live traffic counters.
-        table.add_row("Uplink Data:", f"[bold green]{human_size(self.uplink_d)}[/bold green]")
-        table.add_row("Downlink Data:", f"[bold blue]{human_size(self.downlink_d)}[/bold blue]")
+        # Live traffic: transfer rate as the headline value, with the cumulative total in brackets.
+        table.add_row("Uplink Data:", f"[bold green]{human_size(transfer_rate(self._uplink_samples, self.uplink_d))}/s[/bold green] ([dim]{human_size(self.uplink_d)}[/dim])")
+        table.add_row("Downlink Data:", f"[bold blue]{human_size(transfer_rate(self._downlink_samples, self.downlink_d))}/s[/bold blue] ([dim]{human_size(self.downlink_d)}[/dim])")
 
         # Latency measurements, "N/A" until the first round completes.
         table.add_row("Client to Server Delay:", f"[yellow]{format_delay(self.server_delay)}[/yellow]")
@@ -169,7 +213,7 @@ class Client:
 
         return Panel(
             table,
-            title="[bold green]🔒 WOW VPN Client Status[/bold green]",
+            title="[bold green]🔒 WoW VPN Client Status[/bold green]",
             border_style="green" if self.tun else "yellow",
             expand=False
         )
