@@ -4,7 +4,8 @@ from dataclasses import dataclass
 import ipaddress
 import asyncio
 import ssl
-from wow_common.protocol import unpack, PacketType, Authentication, AuthenticationResponse, ApplicationData, Ping, Pong  # type: ignore
+from typing import Callable
+from wow_common.protocol import Raw, unpack, PacketType, Authentication, AuthenticationResponse, ApplicationData, Ping, Pong  # type: ignore
 from wow_common.tun import Tun # type: ignore
 import uuid
 import rich
@@ -17,6 +18,7 @@ class Remote:
         stream_id: Random hex identifier for the connection.
         authorized: Whether the client has successfully authenticated.
         tun: The TUN device created for this client, if any.
+        susp: Is this remote marked as some kind of auto inspector
         reader: Stream reader for the TLS connection.
         writer: Stream writer for the TLS connection.
     """
@@ -24,6 +26,7 @@ class Remote:
     stream_id: str
     authorized: bool
     tun: Tun | None
+    susp: bool
 
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
@@ -38,13 +41,13 @@ class Server:
     Attributes:
         host: Listen address.
         port: Listen port.
-        token: The shared 128-bit authentication token as an integer.
+        auth_handler: The handler of authentication, accepts a 128-bit authentication token as an integer.
         interface: Physical egress interface used for NAT.
         masquerade: If True, silently drop bad authentication attempts
             instead of replying with a failure (camouflage).
     """
 
-    def __init__(self, host: str, port: int, token: int, interface: str, cert: str, key: str, masquerade: bool = False):
+    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False):
         """Initialize the server.
 
         Args:
@@ -60,7 +63,7 @@ class Server:
         self.port = port
         self.cert = cert
         self.key = key
-        self.token = token
+        self.auth_handler = auth_handler
         self.masquerade = masquerade
         self.interface = interface
         self.ip_cnt = 2
@@ -79,7 +82,7 @@ class Server:
         """
         peer_addr = writer.get_extra_info("peername")
         rich.print(f"[green]New connection from {peer_addr}[/green]")
-        remote = Remote(uuid.uuid4().hex, False, None, reader, writer)
+        remote = Remote(uuid.uuid4().hex, False, None, False, reader, writer)
         self.remotes.append(remote)
 
         try:
@@ -129,13 +132,16 @@ class Server:
         Returns:
             A response packet to send back, or None.
         """
+        if remote.susp and self.masquerade:
+            return
         if isinstance(packet, Authentication):
-            if packet.token != self.token:
+            if not self.auth_handler(packet.token):
                 if not self.masquerade:
                     return AuthenticationResponse(False, 0, 0)
-                return
+                remote.susp = True
+                print(f"Susp remote: {remote}")
             remote.authorized = True
-            remote.tun = Tun(f"vpntun{remote.stream_id[:5]}")
+            remote.tun = Tun(f"wowtun{remote.stream_id[:9]}")
             remote.tun.up()
             remote.tun.setup_nat(self.interface)
             loop = asyncio.get_running_loop()
@@ -154,6 +160,9 @@ class Server:
             remote.tun.write(packet.data)
         if isinstance(packet, Ping):
             return Pong()
+
+        print(f"Susp remote: {remote}")
+        remote.susp = True
 
     async def serve(self) -> None:
         """Start the TLS listener and serve clients forever."""

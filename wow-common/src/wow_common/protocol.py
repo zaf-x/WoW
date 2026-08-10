@@ -241,6 +241,17 @@ class Pong(PacketType):
         return cls()
 
 
+@dataclass
+class Raw:
+    data: bytes
+
+    def pack(self):
+        return self.data
+
+    @classmethod
+    def unpack(cls, data: bytes):
+        return cls(data)
+
 def unpack(data: bytes):
     """Decode a single frame into its concrete packet object.
 
