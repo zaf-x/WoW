@@ -5,7 +5,7 @@ import ipaddress
 import asyncio
 import ssl
 from typing import Callable
-from wow_common.protocol import Raw, unpack, PacketType, Authentication, AuthenticationResponse, ApplicationData, Ping, Pong  # type: ignore
+from wow_common.protocol import Raw, unpack, PacketType, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, ApplicationData, Ping, Pong  # type: ignore
 from wow_common.tun import Tun # type: ignore
 import uuid
 import rich
@@ -96,9 +96,9 @@ class Server:
 
                 packet = unpack(length_bytes + data)
 
-                ret = await self.manage_packet(remote, packet)
-                if ret:
-                    writer.write(ret.pack())
+                responses = await self.manage_packet(remote, packet)
+                for resp in responses:
+                    writer.write(resp.pack())
                 await writer.drain()
 
         except asyncio.IncompleteReadError:
@@ -122,7 +122,7 @@ class Server:
         remote.writer.close()
         await remote.writer.wait_closed()
 
-    async def manage_packet(self, remote: Remote, packet: PacketType):
+    async def manage_packet(self, remote: Remote, packet: PacketType) -> list[PacketType]:
         """Handle one decoded packet from a client.
 
         Args:
@@ -130,14 +130,14 @@ class Server:
             packet: The decoded packet.
 
         Returns:
-            A response packet to send back, or None.
+            A list of response packets to send back (possibly empty).
         """
         if remote.susp and self.masquerade:
-            return
+            return []
         if isinstance(packet, Authentication):
             if not self.auth_handler(packet.token):
                 if not self.masquerade:
-                    return AuthenticationResponse(False, 0, 0)
+                    return [AuthenticationResponse(False)]
                 remote.susp = True
                 print(f"Susp remote: {remote}")
             remote.authorized = True
@@ -147,22 +147,30 @@ class Server:
             loop = asyncio.get_running_loop()
             loop.add_reader(remote.tun.fileno(), lambda: self.on_tun_readable(remote))
             self.ip_cnt += 1
+            # Tunnel networks: IPv4 10.8.0.0/24, IPv6 fd08::/64 (ULA mirroring 10.8.0.0/24).
             client_ip = 0xA080000 | self.ip_cnt
             client_addr = str(ipaddress.IPv4Address(client_ip))
             remote.tun.add_route(f"{client_addr}/32")
             remote.tun.set_addr("10.8.0.1/24")
+            client_v6 = (0xFD08 << 112) | self.ip_cnt
+            remote.tun.set_addr("fd08::1/64")
 
-            return AuthenticationResponse(True, client_ip, 24)
+            return [
+                AuthenticationResponse(True),
+                IPv4Assign(client_ip, 24),
+                IPv6Assign(client_v6, 64),
+            ]
         if isinstance(packet, ApplicationData):
             if not remote.tun:
-                return
+                return []
 
             remote.tun.write(packet.data)
         if isinstance(packet, Ping):
-            return Pong()
+            return [Pong()]
 
         print(f"Susp remote: {remote}")
         remote.susp = True
+        return []
 
     async def serve(self) -> None:
         """Start the TLS listener and serve clients forever."""

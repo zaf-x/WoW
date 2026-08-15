@@ -29,15 +29,15 @@ Client Application -> TUN -----TCP-----> Server -> TUN -> Physical interface
 ### Type 1 Authentication Response
 
 ```
-0         1         5     6
-+---------+---------+-----+
-| Success | IP Addr | CIDR|
-+---------+---------+-----+
+0         1
++---------+
+| Success |
++---------+
 ```
 
-On success, `IP Addr` (4 bytes) and `CIDR` (1 byte prefix length) tell the
-client which virtual address to configure on its TUN interface.
-Meaningless when `Success` is 0.
+`Success` is 1 when the token is accepted, 0 otherwise. On success the
+server immediately follows with a Type 5 IPv4 Assign and a Type 6 IPv6
+Assign packet carrying the tunnel addresses.
 
 ### Type 2 Application Data
 
@@ -52,3 +52,27 @@ connections.
 ### Type 4 Pong
 
 No body. Sent by the server in reply to a Ping.
+
+### Type 5 IPv4 Assign
+
+```
+0         4     5
++---------+-----+
+| IP Addr |CIDR |
++---------+-----+
+```
+
+The virtual IPv4 address (`IP Addr`, 4 bytes big-endian) and the prefix
+length (`CIDR`, 1 byte) to configure on the client's TUN interface.
+
+### Type 6 IPv6 Assign
+
+```
+0                                    16    17
++------------------------------------+-----+
+| IP Addr (16 bytes)                 |CIDR |
++------------------------------------+-----+
+```
+
+The virtual IPv6 address (`IP Addr`, 16 bytes big-endian) and the prefix
+length (`CIDR`, 1 byte) to configure on the client's TUN interface.

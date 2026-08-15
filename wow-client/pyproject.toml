@@ -61,3 +61,7 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+
+[project.scripts]
+wow-client = "wow_client.__main__:main_noasync"

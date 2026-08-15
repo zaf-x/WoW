@@ -16,14 +16,15 @@ import struct
 from dataclasses import dataclass
 
 
-class PacketType:
-    """Numeric identifiers for the packet types used on the wire."""
+class PacketType: pass
 
-    AUTH = 0
-    AUTH_RESP = 1
-    APP_DATA = 2
-    PING = 3
-    PONG = 4
+PT_AUTH = 0
+PT_AUTH_RESP = 1
+PT_APP_DATA = 2
+PT_PING = 3
+PT_PONG = 4
+PT_IPV4_ASSIGN = 5
+PT_IPV6_ASSIGN = 6
 
 
 @dataclass
@@ -45,7 +46,7 @@ class Authentication(PacketType):
         return struct.pack(
             "!IBQQ",
             17,  # payload_len = 1 (type) + 16 (token)
-            PacketType.AUTH,
+            PT_AUTH,
             self.token >> 64,
             self.token & 0xFFFFFFFFFFFFFFFF,
         )
@@ -64,13 +65,8 @@ class Authentication(PacketType):
             ValueError: If the data is too short, has the wrong packet
                 type, or carries an unexpected payload length.
         """
-        if len(data) < 21:
-            raise ValueError("Authentication packet too short")
-        payload_len, pkt_type, token_high, token_low = struct.unpack("!IBQQ", data)
-        if pkt_type != PacketType.AUTH:
-            raise ValueError(f"Expected AUTH({PacketType.AUTH}), got {pkt_type}")
-        if payload_len != 17:
-            raise ValueError(f"Unexpected payload_len: {payload_len}")
+        verify(data, 17, PT_AUTH)
+        _, _, token_high, token_low = struct.unpack("!IBQQ", data)
         return cls((token_high << 64) | token_low)
 
 
@@ -78,18 +74,15 @@ class Authentication(PacketType):
 class AuthenticationResponse(PacketType):
     """Server -> client reply to an :class:`Authentication` request.
 
-    On success the response carries the tunnel IPv4 address assigned to
-    the client.
+    On success the tunnel addresses are carried in the
+    :class:`IPv4Assign` and :class:`IPv6Assign` packets sent right after
+    this one.
 
     Attributes:
         success: Whether the authentication succeeded.
-        ip_addr: The assigned tunnel IPv4 address as a 32-bit integer.
-        ip_cidr: The prefix length of the tunnel network (e.g. 24).
     """
 
     success: bool
-    ip_addr: int
-    ip_cidr: int
 
     def pack(self) -> bytes:
         """Serialize the packet to its wire representation.
@@ -98,12 +91,10 @@ class AuthenticationResponse(PacketType):
             The encoded packet bytes (header plus payload).
         """
         return struct.pack(
-            "!IBBIB",
-            7,  # payload_len = 1 (type) + 1 (success) + 4 (ip_addr) + 1 (ip_cidr)
-            PacketType.AUTH_RESP,
+            "!IBB",
+            2,  # payload_len = 1 (type) + 1 (success)
+            PT_AUTH_RESP,
             1 if self.success else 0,
-            self.ip_addr,
-            self.ip_cidr
         )
 
     @classmethod
@@ -120,14 +111,94 @@ class AuthenticationResponse(PacketType):
             ValueError: If the data is too short, has the wrong packet
                 type, or carries an unexpected payload length.
         """
-        if len(data) < 11:
-            raise ValueError("AuthenticationResponse packet too short")
-        payload_len, pkt_type, success, ip_addr, ip_cidr = struct.unpack("!IBBIB", data)
-        if pkt_type != PacketType.AUTH_RESP:
-            raise ValueError(f"Expected AUTH_RESP({PacketType.AUTH_RESP}), got {pkt_type}")
-        if payload_len != 7:
-            raise ValueError(f"Unexpected payload_len: {payload_len}")
-        return cls(success == 1, ip_addr, ip_cidr)
+        verify(data, 2, PT_AUTH_RESP)
+        _, _, success = struct.unpack("!IBB", data)
+        return cls(success == 1)
+
+@dataclass
+class IPv4Assign(PacketType):
+    """Server -> client assignment of the tunnel IPv4 address.
+
+    Sent after :class:`AuthenticationResponse`; carries the 32-bit
+    address as an integer and the prefix length of the tunnel network.
+
+    Attributes:
+        ip_addr: The assigned tunnel IPv4 address as a 32-bit integer.
+        ip_cidr: The prefix length of the tunnel network (e.g. 24).
+    """
+
+    ip_addr: int
+    ip_cidr: int
+
+    def pack(self) -> bytes:
+        """Serialize the packet to its wire representation.
+
+        Returns:
+            The encoded packet bytes (header plus payload).
+        """
+
+        return struct.pack(
+            "!IBIB",
+            6,
+            PT_IPV4_ASSIGN,
+            self.ip_addr,
+            self.ip_cidr
+        )
+
+    @classmethod
+    def unpack(cls, data: bytes):
+        verify(data, 6, PT_IPV4_ASSIGN)
+        _, _, ip_addr, ip_cidr = struct.unpack("!IBIB", data)
+        return cls(ip_addr, ip_cidr)
+
+
+@dataclass
+class IPv6Assign(PacketType):
+    """Server -> client assignment of the tunnel IPv6 address.
+
+    Sent after :class:`AuthenticationResponse`; carries the 128-bit
+    address as an integer and the prefix length of the tunnel network.
+
+    Attributes:
+        ip_addr: The assigned tunnel IPv6 address as a 128-bit integer.
+        ip_cidr: The prefix length of the tunnel network (e.g. 64).
+    """
+
+    ip_addr: int
+    ip_cidr: int
+
+    def pack(self) -> bytes:
+        """Serialize the packet to its wire representation.
+
+        Returns:
+            The encoded packet bytes (header plus payload).
+        """
+        return struct.pack(
+            "!IB16sB",
+            18,  # payload_len = 1 (type) + 16 (addr) + 1 (cidr)
+            PT_IPV6_ASSIGN,
+            self.ip_addr.to_bytes(16, byteorder="big", signed=False),
+            self.ip_cidr
+        )
+
+    @classmethod
+    def unpack(cls, data: bytes) -> "IPv6Assign":
+        """Parse a packet from its wire representation.
+
+        Args:
+            data: The full frame bytes including the 4-byte length header.
+
+        Returns:
+            The decoded :class:`IPv6Assign` packet.
+
+        Raises:
+            ValueError: If the data is too short, has the wrong packet
+                type, or carries an unexpected payload length.
+        """
+        verify(data, 18, PT_IPV6_ASSIGN)
+        _, _, ip_addr, ip_cidr = struct.unpack("!IB16sB", data)
+        return cls(int.from_bytes(ip_addr, byteorder="big"), ip_cidr)
+
 
 
 @dataclass
@@ -147,7 +218,7 @@ class ApplicationData(PacketType):
             The encoded packet bytes (header plus payload).
         """
         payload_len = 1 + len(self.data)
-        return struct.pack("!IB", payload_len, PacketType.APP_DATA) + self.data
+        return struct.pack("!IB", payload_len, PT_APP_DATA) + self.data
 
     @classmethod
     def unpack(cls, data: bytes) -> "ApplicationData":
@@ -166,8 +237,8 @@ class ApplicationData(PacketType):
         if len(data) < 5:
             raise ValueError("ApplicationData packet too short")
         payload_len, pkt_type = struct.unpack("!IB", data[:5])
-        if pkt_type != PacketType.APP_DATA:
-            raise ValueError(f"Expected APP_DATA({PacketType.APP_DATA}), got {pkt_type}")
+        if pkt_type != PT_APP_DATA:
+            raise ValueError(f"Expected APP_DATA({PT_APP_DATA}), got {pkt_type}")
         body_len = payload_len - 1
         expected_total = 5 + body_len
         if len(data) < expected_total:
@@ -185,7 +256,7 @@ class Ping(PacketType):
         Returns:
             The encoded packet bytes (header only, empty payload).
         """
-        return struct.pack("!IB", 1, PacketType.PING)
+        return struct.pack("!IB", 1, PT_PING)
 
     @classmethod
     def unpack(cls, data: bytes) -> "Ping":
@@ -203,7 +274,7 @@ class Ping(PacketType):
         if len(data) < 5:
             raise ValueError("Ping packet too short")
         payload_len, pkt_type = struct.unpack("!IB", data[:5])
-        if pkt_type != PacketType.PING or payload_len != 1:
+        if pkt_type != PT_PING or payload_len != 1:
             raise ValueError("Not a Ping packet")
         return cls()
 
@@ -218,7 +289,7 @@ class Pong(PacketType):
         Returns:
             The encoded packet bytes (header only, empty payload).
         """
-        return struct.pack("!IB", 1, PacketType.PONG)
+        return struct.pack("!IB", 1, PT_PONG)
 
     @classmethod
     def unpack(cls, data: bytes) -> "Pong":
@@ -236,7 +307,7 @@ class Pong(PacketType):
         if len(data) < 5:
             raise ValueError("Pong packet too short")
         payload_len, pkt_type = struct.unpack("!IB", data[:5])
-        if pkt_type != PacketType.PONG or payload_len != 1:
+        if pkt_type != PT_PONG or payload_len != 1:
             raise ValueError("Not a Pong packet")
         return cls()
 
@@ -272,15 +343,26 @@ def unpack(data: bytes):
 
     pkt_type = data[4]
 
-    if pkt_type == PacketType.AUTH:
+    if pkt_type == PT_AUTH:
         return Authentication.unpack(data)
-    elif pkt_type == PacketType.AUTH_RESP:
+    elif pkt_type == PT_AUTH_RESP:
         return AuthenticationResponse.unpack(data)
-    elif pkt_type == PacketType.APP_DATA:
+    elif pkt_type == PT_APP_DATA:
         return ApplicationData.unpack(data)
-    elif pkt_type == PacketType.PING:
+    elif pkt_type == PT_PING:
         return Ping.unpack(data)
-    elif pkt_type == PacketType.PONG:
+    elif pkt_type == PT_PONG:
         return Pong.unpack(data)
+    elif pkt_type == PT_IPV4_ASSIGN:
+        return IPv4Assign.unpack(data)
+    elif pkt_type == PT_IPV6_ASSIGN:
+        return IPv6Assign.unpack(data)
     else:
         raise ValueError(f"Unknown packet type: {pkt_type}")
+
+def verify(data: bytes, payload_len: int, packet_type: int):
+    if int.from_bytes(data[:4], byteorder="big") != payload_len:
+        raise ValueError(f"Invalid Packet: Invalid payload length, expecting {payload_len}, found {int.from_bytes(data[:4])}")
+
+    if data[4] != packet_type:
+        raise ValueError("Invalid Packet: Invalid Type")

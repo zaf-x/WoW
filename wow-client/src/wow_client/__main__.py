@@ -125,6 +125,12 @@ async def main():
 
     await run_client(client)
 
+def main_noasync():
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())

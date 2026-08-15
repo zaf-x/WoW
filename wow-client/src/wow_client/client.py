@@ -3,7 +3,8 @@
 import asyncio
 from collections import deque
 import ssl
-from wow_common.protocol import ApplicationData, Authentication, AuthenticationResponse, Ping, Pong, unpack  # type: ignore
+import subprocess
+from wow_common.protocol import ApplicationData, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, Ping, Pong, unpack  # type: ignore
 from wow_common.tun import Tun # type: ignore
 import socket
 import time
@@ -24,6 +25,34 @@ RATE_WINDOW_SECONDS = 5.0
 # Minimum interval between transfer-rate samples, so that bursts of packets do not
 # flood the rolling history with near-identical snapshots.
 RATE_SAMPLE_INTERVAL = 0.25
+
+def _discover_lan_networks(exclude_interfaces: set[str]) -> list[str]:
+    """Return directly-connected IPv4 networks (``"192.168.1.0/24"``) on physical interfaces.
+
+    Packets destined to these networks must bypass the tunnel (see
+    :meth:`Tun.setup_routing`): replies from local services - e.g. a proxy
+    answering LAN clients - would otherwise be captured by the TUN route
+    and dropped, breaking those clients.
+
+    Args:
+        exclude_interfaces: Interface names to skip (e.g. the tunnel device).
+    """
+    networks: list[str] = []
+    try:
+        output = subprocess.check_output(["ip", "-o", "addr", "show"]).decode()
+    except (subprocess.CalledProcessError, OSError):
+        return networks
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        ifname, family, addr = parts[1], parts[2], parts[3]
+        if ifname == "lo" or ifname in exclude_interfaces:
+            continue
+        if family != "inet" or "/" not in addr:
+            continue
+        networks.append(addr)
+    return networks
 
 def human_size(size: float) -> str:
     """Format a byte count as a human-readable string.
@@ -154,9 +183,10 @@ class Client:
         self.writer: asyncio.StreamWriter | None = None
         self.token: int = int(token, 16)
         self.fwmark = fwmark
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_MARK, self.fwmark)
-        self.sock.setblocking(False)
+        # Outer socket is created in run() after resolving the server
+        # address, so both IPv4 and IPv6 servers are supported.
+        self.sock: socket.socket | None = None
+        self.server_ip: str | None = None
         self.ip = ""
         self.cidr = 0
         self.tun: Tun | None = None
@@ -199,7 +229,8 @@ class Client:
 
         # Show network details only once the TUN device has an assigned IP.
         if self.tun and hasattr(self, 'ip_addr'):
-            table.add_row("Assigned IP:", f"[green]{self.ip_addr}/{self.cidr}[/green]")
+            table.add_row("Assigned IPv4:", f"[green]{self.ip_addr}/{self.cidr}[/green]")
+            table.add_row("Assigned IPv6:", f"[green]{self.ip6_addr}/{self.cidr6}[/green]")
         else:
             table.add_row("Assigned IP:", "[dim]Not Assigned[/dim]")
 
@@ -245,7 +276,20 @@ class Client:
         with Live(self._generate_panel("Connecting...", "yellow"), console=self.console, refresh_per_second=4) as live:
             self.live = live
 
-            await loop.sock_connect(self.sock, (self.server_host, self.server_port))
+            # Resolve the server address first so the outer socket uses the
+            # right address family (IPv4 or IPv6).
+            infos = await loop.getaddrinfo(
+                self.server_host, self.server_port, type=socket.SOCK_STREAM
+            )
+            if not infos:
+                raise ValueError("Cannot resolve server address")
+            family, _, _, _, sockaddr = infos[0]
+            self.server_ip = sockaddr[0]
+            self.sock = socket.socket(family, socket.SOCK_STREAM)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_MARK, self.fwmark)
+            self.sock.setblocking(False)
+
+            await loop.sock_connect(self.sock, sockaddr)
             self.update_panel("Authenticating...", "yellow")
 
             self.reader, self.writer = await asyncio.open_connection(sock=self.sock, ssl=ssl_context, server_hostname=self.server_host)
@@ -261,14 +305,25 @@ class Client:
             if not auth_resp.success:
                 raise ValueError("Invalid token")
 
-            ip = auth_resp.ip_addr
-            self.cidr = auth_resp.ip_cidr
+            # The server answers with the IPv4 and IPv6 tunnel addresses.
+            v4_pkt = await self.read_packet()
+            v6_pkt = await self.read_packet()
+            if not isinstance(v4_pkt, IPv4Assign) or not isinstance(v6_pkt, IPv6Assign):
+                raise ValueError("Invalid server protocol")
 
-            self.ip_addr = ipaddress.IPv4Address(ip)
+            self.ip_addr = ipaddress.IPv4Address(v4_pkt.ip_addr)
+            self.cidr = v4_pkt.ip_cidr
+            self.ip6_addr = ipaddress.IPv6Address(v6_pkt.ip_addr)
+            self.cidr6 = v6_pkt.ip_cidr
             self.tun = Tun("wowtun")
             self.tun.up()
             self.tun.set_addr(f"{self.ip_addr}/{self.cidr}")
-            self.tun.setup_routing(self.fwmark, bypass_ip=socket.gethostbyname(self.server_host))
+            self.tun.set_addr(f"{self.ip6_addr}/{self.cidr6}")
+            self.tun.setup_routing(
+                self.fwmark,
+                bypass_ip=self.server_ip,
+                bypass_networks=_discover_lan_networks({self.tun.name}),
+            )
             self.tun.setup_dns()
 
             # TUN setup is complete; switch the status to Running.
