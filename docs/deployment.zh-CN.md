@@ -14,13 +14,19 @@ WoW VPN 服务端，并连接客户端。
 
 ## 1. 安装
 
-```console
-pip install wow-common wow-server
+创建虚拟环境并安装到其中——下面的 systemd unit 会运行
+`/opt/wow/venv/bin/wow-server`，所以包必须装进这个 venv
+（Ubuntu/Debian 若缺少 `python3-venv`，先 `apt install python3-venv`）：
+
+```bash
+sudo mkdir -p /opt/wow
+sudo python3 -m venv /opt/wow/venv
+sudo /opt/wow/venv/bin/pip install wow-common wow-server
 ```
 
 或从源码安装：
 
-```console
+```bash
 git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-server
@@ -30,14 +36,14 @@ pip install ./wow-common ./wow-server
 
 用 certbot（需要域名）：
 
-```console
+```bash
 apt install certbot
 certbot certonly --standalone -d vpn.example.com
 ```
 
 服务端需要 fullchain 和私钥：
 
-```console
+```bash
 ln -s /etc/letsencrypt/live/vpn.example.com/fullchain.pem /opt/wow/cert.pem
 ln -s /etc/letsencrypt/live/vpn.example.com/privkey.pem  /opt/wow/key.pem
 ```
@@ -47,7 +53,7 @@ ln -s /etc/letsencrypt/live/vpn.example.com/privkey.pem  /opt/wow/key.pem
 
 ## 3. 认证 token
 
-```console
+```bash
 openssl rand -hex 16
 ```
 
@@ -90,7 +96,7 @@ RestartSec=3
 WantedBy=multi-user.target
 ```
 
-```console
+```bash
 chmod 600 /opt/wow/wow-server.conf
 systemctl daemon-reload
 systemctl enable --now wow-server
@@ -104,7 +110,7 @@ systemctl enable --now wow-server
 
 ## 6. 验证服务端
 
-```console
+```bash
 systemctl status wow-server
 ss -tlnp | grep 443
 journalctl -u wow-server -f
@@ -116,7 +122,7 @@ journalctl -u wow-server -f
 
 在需要 root（TUN 设备 + 延迟探测用的原始 ICMP socket）的 Linux 机器上：
 
-```console
+```bash
 pip install wow-common wow-client
 
 # 存成命名配置，再交互式启动
@@ -126,7 +132,7 @@ wow-client launch
 
 或直接连接：
 
-```console
+```bash
 wow-client start -s vpn.example.com -p 443 -t <32位hex>
 ```
 
@@ -134,7 +140,7 @@ wow-client start -s vpn.example.com -p 443 -t <32位hex>
 
 状态面板会显示分配的地址（`10.8.0.x/24` 和 `fd08::x/64`）。隧道建立后：
 
-```console
+```bash
 ping 10.8.0.1                # IPv4 连通服务端
 ping -6 fd08::1              # IPv6 连通服务端
 curl -4 https://api.ipify.org   # 经隧道的公网 IPv4

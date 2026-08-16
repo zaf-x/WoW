@@ -15,13 +15,20 @@ systemd and a Let's Encrypt certificate, then connecting a client.
 
 ## 1. Install
 
-```console
-pip install wow-common wow-server
+Create a virtual environment and install into it — the systemd unit
+below runs `/opt/wow/venv/bin/wow-server`, so the packages must live
+in that venv (on Ubuntu/Debian, `apt install python3-venv` first if
+it is missing):
+
+```bash
+sudo mkdir -p /opt/wow
+sudo python3 -m venv /opt/wow/venv
+sudo /opt/wow/venv/bin/pip install wow-common wow-server
 ```
 
 Or from source:
 
-```console
+```bash
 git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-server
@@ -31,14 +38,14 @@ pip install ./wow-common ./wow-server
 
 With certbot (requires a domain):
 
-```console
+```bash
 apt install certbot
 certbot certonly --standalone -d vpn.example.com
 ```
 
 The server needs the fullchain and private key:
 
-```console
+```bash
 ln -s /etc/letsencrypt/live/vpn.example.com/fullchain.pem /opt/wow/cert.pem
 ln -s /etc/letsencrypt/live/vpn.example.com/privkey.pem  /opt/wow/key.pem
 ```
@@ -48,7 +55,7 @@ certificate with it; clients then trust the CA via `-c ca.pem`.
 
 ## 3. Authentication token
 
-```console
+```bash
 openssl rand -hex 16
 ```
 
@@ -92,7 +99,7 @@ RestartSec=3
 WantedBy=multi-user.target
 ```
 
-```console
+```bash
 chmod 600 /opt/wow/wow-server.conf
 systemctl daemon-reload
 systemctl enable --now wow-server
@@ -107,7 +114,7 @@ systemctl enable --now wow-server
 
 ## 6. Verify the server
 
-```console
+```bash
 systemctl status wow-server
 ss -tlnp | grep 443
 journalctl -u wow-server -f
@@ -119,7 +126,7 @@ You should see `Server listening on 0.0.0.0:443`.
 
 On a Linux machine with root (TUN device + raw ICMP socket):
 
-```console
+```bash
 pip install wow-common wow-client
 
 # save a named profile, then launch it interactively
@@ -129,7 +136,7 @@ wow-client launch
 
 Or connect directly:
 
-```console
+```bash
 wow-client start -s vpn.example.com -p 443 -t <32-hex-chars>
 ```
 
@@ -138,7 +145,7 @@ wow-client start -s vpn.example.com -p 443 -t <32-hex-chars>
 The status panel shows the assigned addresses (`10.8.0.x/24` and
 `fd08::x/64`). With the tunnel up:
 
-```console
+```bash
 ping 10.8.0.1                # server over IPv4
 ping -6 fd08::1              # server over IPv6
 curl -4 https://api.ipify.org   # public IPv4 via the tunnel
