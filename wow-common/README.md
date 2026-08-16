@@ -1,19 +1,17 @@
 # wow-common
 
-[![PyPI - Version](https://img.shields.io/pypi/v/wow-common.svg)](https://pypi.org/project/wow-common)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-common.svg)](https://pypi.org/project/wow-common)
+Shared building blocks for the [WoW VPN](../README.md):
 
------
+- `wow_common.protocol` — length-prefixed wire framing and packet
+  (de)serialization (authentication, address assignment, tunnel data,
+  keepalives). See [docs/protocol.md](../docs/protocol.md).
+- `wow_common.tun` — Linux TUN device wrapper with policy routing
+  (`fwmark` bypass), DNS binding and NAT helpers for IPv4 and IPv6.
 
-## Table of Contents
-
-- [Installation](#installation)
-- [License](#license)
-
-## Installation
+## Install
 
 ```console
-pip install wow-common
+pip install .
 ```
 
 ## License
