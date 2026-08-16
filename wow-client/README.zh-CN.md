@@ -15,12 +15,16 @@
 
 ```bash
 # 直接连接（用 -c ca.pem 信任自定义 CA）
-wow-client start -s vpn.example.com -p 9999 -t <32位hex>
+sudo wow-client start -s vpn.example.com -p 9999 -t <32位hex>
 
 # 把服务器存成命名配置，再交互式选择
-wow-client save myserver -s vpn.example.com -p 9999 -t <32位hex>
-wow-client launch
+sudo wow-client save myserver -s vpn.example.com -p 9999 -t <32位hex>
+sudo wow-client launch
 ```
+
+> 若 `sudo` 提示 `wow-client: command not found`，说明可执行文件不在
+> sudo 的 PATH 里（例如 pipx 或 `--user` 装到了 `~/.local/bin`）——
+> 改用 `sudo "$(which wow-client)" ...`。
 
 配置文件存放在 `$XDG_CONFIG_HOME/wow-client/config.json`
 （默认 `~/.config/wow-client/config.json`），仅所有者可读。

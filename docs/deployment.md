@@ -130,15 +130,19 @@ On a Linux machine with root (TUN device + raw ICMP socket):
 pip install wow-common wow-client
 
 # save a named profile, then launch it interactively
-wow-client save myvpn -s vpn.example.com -p 443 -t <32-hex-chars>
-wow-client launch
+sudo wow-client save myvpn -s vpn.example.com -p 443 -t <32-hex-chars>
+sudo wow-client launch
 ```
 
 Or connect directly:
 
 ```bash
-wow-client start -s vpn.example.com -p 443 -t <32-hex-chars>
+sudo wow-client start -s vpn.example.com -p 443 -t <32-hex-chars>
 ```
+
+> If `sudo` reports `wow-client: command not found`, the binary lives
+> outside sudo's PATH (e.g. a pipx or `--user` install in `~/.local/bin`) —
+> run `sudo "$(which wow-client)" ...` instead.
 
 ## 8. Test the tunnel
 

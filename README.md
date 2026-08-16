@@ -113,12 +113,16 @@ pip install ./wow-common ./wow-client
 
 ```bash
 # connect directly (trust a custom CA with -c ca.pem)
-wow-client start -s vpn.example.com -p 9999 -t <32-hex-chars>
+sudo wow-client start -s vpn.example.com -p 9999 -t <32-hex-chars>
 
 # save servers as named profiles, then pick one interactively
-wow-client save myserver -s vpn.example.com -p 9999 -t <32-hex-chars>
-wow-client launch
+sudo wow-client save myserver -s vpn.example.com -p 9999 -t <32-hex-chars>
+sudo wow-client launch
 ```
+
+> If `sudo` reports `wow-client: command not found`, the binary lives
+> outside sudo's PATH (e.g. a pipx or `--user` install in `~/.local/bin`) —
+> run `sudo "$(which wow-client)" ...` instead.
 
 ## Security notes
 

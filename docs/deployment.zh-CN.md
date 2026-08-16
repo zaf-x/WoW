@@ -126,15 +126,19 @@ journalctl -u wow-server -f
 pip install wow-common wow-client
 
 # 存成命名配置，再交互式启动
-wow-client save myvpn -s vpn.example.com -p 443 -t <32位hex>
-wow-client launch
+sudo wow-client save myvpn -s vpn.example.com -p 443 -t <32位hex>
+sudo wow-client launch
 ```
 
 或直接连接：
 
 ```bash
-wow-client start -s vpn.example.com -p 443 -t <32位hex>
+sudo wow-client start -s vpn.example.com -p 443 -t <32位hex>
 ```
+
+> 若 `sudo` 提示 `wow-client: command not found`，说明可执行文件不在
+> sudo 的 PATH 里（例如 pipx 或 `--user` 装到了 `~/.local/bin`）——
+> 改用 `sudo "$(which wow-client)" ...`。
 
 ## 8. 测试隧道
 
