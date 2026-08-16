@@ -16,7 +16,24 @@ import struct
 from dataclasses import dataclass
 
 
-class PacketType: pass
+class PacketType:
+    """Base class for all wire packets.
+
+    Subclasses implement :meth:`pack` (serialize) and :meth:`unpack`
+    (deserialize). They are declared here so the common interface is
+    visible to type checkers; the string annotation keeps the class-body
+    reference lazy, so eager annotation evaluation on Python < 3.14
+    does not raise a NameError at import time.
+    """
+
+    def pack(self) -> bytes:
+        """Serialize this packet to its wire payload (without framing)."""
+        raise NotImplementedError
+
+    @classmethod
+    def unpack(cls, data: bytes) -> "PacketType":
+        """Deserialize a payload into a packet instance."""
+        raise NotImplementedError
 
 PT_AUTH = 0
 PT_AUTH_RESP = 1
