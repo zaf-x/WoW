@@ -1,5 +1,8 @@
 # wow-server
 
+[![PyPI - Version](https://img.shields.io/pypi/v/wow-server.svg)](https://pypi.org/project/wow-server)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-server.svg)](https://pypi.org/project/wow-server)
+
 The server for the [WoW VPN](https://github.com/zaf-x/WoW#readme): accepts TLS clients,
 authenticates them with a shared 128-bit token (or a custom auth script),
 creates a per-client TUN device and NATs their traffic out through the

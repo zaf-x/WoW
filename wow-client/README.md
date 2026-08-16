@@ -1,5 +1,8 @@
 # wow-client
 
+[![PyPI - Version](https://img.shields.io/pypi/v/wow-client.svg)](https://pypi.org/project/wow-client)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-client.svg)](https://pypi.org/project/wow-client)
+
 The client for the [WoW VPN](https://github.com/zaf-x/WoW#readme): connects to the server over
 TLS, authenticates with a 128-bit token, sets up a local TUN device and
 routes traffic through the tunnel. A live status panel shows transfer

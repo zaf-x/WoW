@@ -1,5 +1,8 @@
 # wow-common
 
+[![PyPI - Version](https://img.shields.io/pypi/v/wow-common.svg)](https://pypi.org/project/wow-common)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-common.svg)](https://pypi.org/project/wow-common)
+
 Shared building blocks for the [WoW VPN](https://github.com/zaf-x/WoW#readme):
 
 - `wow_common.protocol` — length-prefixed wire framing and packet

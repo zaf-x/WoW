@@ -34,13 +34,24 @@
 
 ### 服务端
 
-需要 Linux、root、`/dev/net/tun` 和 TLS 证书。
+需要 Linux、root、`/dev/net/tun` 和 TLS 证书。可以从 PyPI 安装，或
+从源码安装用于开发：
 
 ```console
+# 从 PyPI 安装
+pip install wow-common wow-server
+```
+
+```console
+# 从源码安装
 git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-server
+```
 
+启动服务端：
+
+```console
 wow-server --host 0.0.0.0 --port 9999 \
            --token <32位hex> --iface eth0 \
            --cert cert.pem --key key.pem
@@ -58,10 +69,18 @@ wow-server --host 0.0.0.0 --port 9999 \
 需要 Linux 和 root（TUN 设备 + 延迟探测用的原始 ICMP socket）。
 
 ```console
+# 从 PyPI 安装
+pip install wow-common wow-client
+```
+
+```console
+# 从源码安装
 git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-client
+```
 
+```console
 # 直接连接（用 -c ca.pem 信任自定义 CA）
 wow-client start -s vpn.example.com -p 9999 -t <32位hex>
 
