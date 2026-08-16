@@ -15,7 +15,7 @@
 
 ## 安装
 
-```console
+```bash
 pip install .
 ```
 

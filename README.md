@@ -38,6 +38,22 @@ Client App -> TUN ---- TCP + TLS ----> Server -> TUN -> Physical interface
 
 See [docs/protocol.md](docs/protocol.md) for the wire protocol specification.
 
+## Try it in one command
+
+Clone the repo and run the demo script — it generates a self-signed
+certificate and a random token, then starts the server and a client on
+the same machine:
+
+```bash
+git clone https://github.com/zaf-x/WoW.git && cd WoW
+pip install wow-common wow-client wow-server
+sudo bash scripts/demo.sh
+```
+
+The client's live status panel runs in the foreground; press Ctrl+C to
+quit (the server is stopped automatically). Requires Linux and root
+(TUN device + iptables).
+
 ## Quick start
 
 ### Server
@@ -45,12 +61,12 @@ See [docs/protocol.md](docs/protocol.md) for the wire protocol specification.
 Requires Linux, root, `/dev/net/tun` and a TLS certificate. Install from
 PyPI, or from source for development:
 
-```console
+```bash
 # from PyPI
 pip install wow-common wow-server
 ```
 
-```console
+```bash
 # from source
 git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
@@ -59,7 +75,7 @@ pip install ./wow-common ./wow-server
 
 Run the server:
 
-```console
+```bash
 wow-server --host 0.0.0.0 --port 9999 \
            --token <32-hex-chars> --iface eth0 \
            --cert cert.pem --key key.pem
@@ -83,19 +99,19 @@ For a full production setup (systemd, TLS, hardening), see
 Requires Linux and root (TUN device + raw ICMP socket for the latency
 probe).
 
-```console
+```bash
 # from PyPI
 pip install wow-common wow-client
 ```
 
-```console
+```bash
 # from source
 git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-client
 ```
 
-```console
+```bash
 # connect directly (trust a custom CA with -c ca.pem)
 wow-client start -s vpn.example.com -p 9999 -t <32-hex-chars>
 

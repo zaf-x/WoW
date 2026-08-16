@@ -15,7 +15,7 @@
 
 ## 用法
 
-```console
+```bash
 wow-server --host 0.0.0.0 --port 9999 \
            --token <32位hex> --iface eth0 \
            --cert cert.pem --key key.pem [--masquerade]
@@ -32,7 +32,7 @@ wow-server --host 0.0.0.0 --port 9999 \
 
 ## 安装
 
-```console
+```bash
 pip install .
 ```
 

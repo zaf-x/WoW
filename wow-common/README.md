@@ -15,7 +15,7 @@ Shared building blocks for the [WoW VPN](https://github.com/zaf-x/WoW#readme):
 
 ## Install
 
-```console
+```bash
 pip install .
 ```
 

@@ -15,7 +15,7 @@ probe).
 
 ## Usage
 
-```console
+```bash
 # connect directly (trust a custom CA with -c ca.pem)
 wow-client start -s vpn.example.com -p 9999 -t <32-hex-chars>
 
@@ -30,7 +30,7 @@ owner.
 
 ## Install
 
-```console
+```bash
 pip install .
 ```
 

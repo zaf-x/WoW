@@ -13,7 +13,7 @@
 
 ## 用法
 
-```console
+```bash
 # 直接连接（用 -c ca.pem 信任自定义 CA）
 wow-client start -s vpn.example.com -p 9999 -t <32位hex>
 
@@ -27,7 +27,7 @@ wow-client launch
 
 ## 安装
 
-```console
+```bash
 pip install .
 ```
 

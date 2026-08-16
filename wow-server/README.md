@@ -17,7 +17,7 @@ Requires Linux, root, `/dev/net/tun` and a TLS certificate.
 
 ## Usage
 
-```console
+```bash
 wow-server --host 0.0.0.0 --port 9999 \
            --token <32-hex-chars> --iface eth0 \
            --cert cert.pem --key key.pem [--masquerade]
@@ -35,7 +35,7 @@ Most options can also be set through a `WOW_*` environment variable
 
 ## Install
 
-```console
+```bash
 pip install .
 ```
 
