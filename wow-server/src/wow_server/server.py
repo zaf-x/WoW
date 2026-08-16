@@ -160,6 +160,8 @@ class Server:
         Args:
             remote: The connection to tear down.
         """
+        if remote in self.remotes:
+            self.remotes.remove(remote)
         if remote.client_v4 is not None:
             self.addr_map.pop((4, remote.client_v4), None)
         if remote.client_v6 is not None:
