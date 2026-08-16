@@ -144,6 +144,11 @@ curl -4 https://api.ipify.org   # public IPv4 via the tunnel
 curl -6 https://api6.ipify.org  # public IPv6 via the tunnel
 ```
 
+Each client gets its own point-to-point `/126` link, so every TUN —
+server side and client side — has a unique address. For client #N the
+server-side link address is `prefix::(4N-7)` (`fd08::1` for the first
+client), the client address is `prefix::(4N-6)` (`fd08::2`).
+
 ## 9. Public IPv6 (optional)
 
 By default clients get ULA IPv6 (`fd08::/64`) and are NATed like IPv4.

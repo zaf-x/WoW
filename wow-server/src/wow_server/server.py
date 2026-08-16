@@ -158,17 +158,18 @@ class Server:
             client_addr = str(ipaddress.IPv4Address(client_ip))
             remote.tun.add_route(f"{client_addr}/32")
             remote.tun.set_addr("10.8.0.1/24")
-            client_v6 = int(self.ipv6_net.network_address) | self.ip_cnt
-            client_v6_addr = str(ipaddress.IPv6Address(client_v6))
-            # A /128 route pins replies to this client to its own TUN even
-            # though every per-client TUN shares the tunnel /64.
-            remote.tun.add_route(f"{client_v6_addr}/128")
-            remote.tun.set_addr(f"{self.ipv6_net.network_address + 1}/{self.ipv6_net.prefixlen}")
+            # IPv6: each client gets its own point-to-point /126 link, so
+            # every TUN — server side and client side — has a unique
+            # address. For client #N: server=prefix::(4N-7), client=prefix::(4N-6).
+            link_base = int(self.ipv6_net.network_address) | (4 * (self.ip_cnt - 2))
+            server_v6 = link_base + 1
+            client_v6 = link_base + 2
+            remote.tun.set_addr(f"{ipaddress.IPv6Address(server_v6)}/126")
 
             return [
                 AuthenticationResponse(True),
                 IPv4Assign(client_ip, 24),
-                IPv6Assign(client_v6, self.ipv6_net.prefixlen),
+                IPv6Assign(client_v6, 126),
             ]
         if isinstance(packet, ApplicationData):
             if not remote.tun:
