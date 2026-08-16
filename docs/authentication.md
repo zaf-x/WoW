@@ -79,5 +79,5 @@ def auth_handler(token: int) -> bool:
 With `--masquerade`, a failed authentication is still answered with a
 success response (the client is told it got an address), but every
 packet from that connection is then silently dropped. To an
-unauthenticated scanner the server looks like a dead port: every attempt
-appears to succeed and nothing ever works.
+unauthenticated scanner the server looks like a live but useless
+endpoint: every attempt appears to succeed and nothing ever works.

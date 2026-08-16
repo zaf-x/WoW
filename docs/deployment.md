@@ -146,9 +146,9 @@ curl -6 https://api6.ipify.org  # public IPv6 via the tunnel
 ```
 
 Clients are assigned flat addresses from the tunnel networks on the
-shared gateway TUN: client #N gets `10.8.0.N/24` and `prefix::N`
-(the first client is `10.8.0.2` / `fd08::2`; the gateway itself is
-`10.8.0.1` / `fd08::1`).
+shared gateway TUN: client #N gets `10.8.0.(N+1)/24` and
+`prefix::(N+1)` (the first client is `10.8.0.2` / `fd08::2`; the
+gateway itself is `10.8.0.1` / `fd08::1`).
 
 ## 9. Public IPv6 (optional)
 
@@ -187,7 +187,8 @@ Then verify by pinging a client's address from another host.
 
 - Run with `--masquerade` (add it to the unit's `ExecStart` line, e.g.
   `ExecStart=/opt/wow/venv/bin/wow-server --masquerade`) so failed auth
-  attempts get a silent dead-end instead of an explicit rejection.
+  attempts get a fake success and their traffic is silently dropped
+  instead of an explicit rejection.
 - Use `--script-auth --auth-script auth.py` for per-client policy,
   rate limiting or logging.
 - The firewall should only expose the tunnel port; nothing else needs

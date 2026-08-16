@@ -2,9 +2,9 @@
 
 [English](protocol.md) | [中文](protocol.zh-CN.md)
 
-WoW 是一个工作在 L2 的 VPN，通过 TCP 传输数据，工作方式如下：
+WoW 是一个 L3（IP 层）VPN，基于 TLS 加密的 TCP 连接传输，工作方式如下：
 
-客户端应用 -> TUN -----TCP-----> 服务端 -> TUN -> 物理网卡
+客户端应用 -> TUN -----TCP + TLS-----> 服务端 -> TUN -> 物理网卡
 
 ## 基础报文结构
 

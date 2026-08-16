@@ -16,7 +16,11 @@ import struct
 from dataclasses import dataclass
 
 
-class PacketType: pass
+class PacketType: 
+    def pack(self) -> bytes: ...
+    @classmethod
+    def unpack(cls, data: bytes) -> PacketType: ...
+    pass
 
 PT_AUTH = 0
 PT_AUTH_RESP = 1

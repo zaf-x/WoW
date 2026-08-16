@@ -9,7 +9,7 @@
 [![wow-server](https://img.shields.io/pypi/v/wow-server.svg?label=wow-server)](https://pypi.org/project/wow-server)
 [![CI](https://github.com/zaf-x/WoW/actions/workflows/ci.yml/badge.svg)](https://github.com/zaf-x/WoW/actions/workflows/ci.yml)
 
-一个轻量级 Linux L2 VPN：IP 数据包通过 TLS 加密的 TCP 隧道，在客户端与
+一个轻量级 Linux L3 VPN：IP 数据包通过 TLS 加密的 TCP 隧道，在客户端与
 服务端的 TUN 设备之间传输。
 
 ```
@@ -18,11 +18,11 @@
 
 ## 特性
 
-- **L2（IP）隧道**，基于 TCP + TLS 加密传输
+- **L3（IP）隧道**，基于 TCP + TLS 加密传输
 - **双栈**：IPv4（`10.8.0.0/24`）与 IPv6 隧道网络——默认 ULA
   `fd08::/64`，可配公网前缀让客户端拿到全局 IPv6 地址
 - **128-bit token 认证**，支持可插拔的自定义认证处理器
-- **伪装模式（masquerade）**：静默丢弃错误认证请求，隐藏服务
+- **伪装模式（masquerade）**：对错误认证回复假成功，再静默丢弃其后续流量
 - 通过 `iptables` / `ip6tables` 为客户端流量做 **NAT**
 - **策略路由**，用 `fwmark` 旁路让 VPN 自身流量不回流进隧道
 - 通过隧道绑定 **DNS**（`resolvectl`）
@@ -65,10 +65,12 @@ wow-server --host 0.0.0.0 --port 9999 \
            --cert cert.pem --key key.pem
 ```
 
-所有选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
-`WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`）。
+大多数选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
+`WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
+`WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`）；
+`--masquerade` 与 `--verbose` 仅支持命令行。
 
-- `--masquerade`：静默丢弃错误认证请求，不再回复
+- `--masquerade`：对错误认证回复假成功，随后静默丢弃其流量
 - `--script-auth --auth-script auth.py`：使用导出
   `auth_handler(token: int) -> bool` 的 Python 文件做自定义认证
 
@@ -104,11 +106,11 @@ wow-client launch
 
 - 认证使用 128-bit 共享 token（32 位 hex），在 TLS 会话内传输，
   暴力破解不可行。
-- 用 `--masquerade` 启动服务端，可以让未认证的扫描器看到的是
-  一个"死端口"。
+- 用 `--masquerade` 启动服务端，可以让未认证的扫描器看到一个
+  "开着但无用"的端口。
 - Token 认证是"全有或全无"的：需要按客户端做策略、限流或日志时，
   请使用 `--script-auth`。可插拔认证 API 见
-  [docs/authentication.md](docs/authentication.md)。
+  [docs/authentication.zh-CN.md](docs/authentication.zh-CN.md)。
 
 ## License
 

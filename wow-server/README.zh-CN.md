@@ -21,11 +21,12 @@ wow-server --host 0.0.0.0 --port 9999 \
            --cert cert.pem --key key.pem [--masquerade]
 ```
 
-所有选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
+大多数选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
 `WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
-`WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`）。
+`WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`）；
+`--masquerade` 与 `--verbose` 仅支持命令行。
 
-- `--masquerade`：静默丢弃错误认证请求，不再回复
+- `--masquerade`：对错误认证回复假成功，随后静默丢弃其流量
 - `--script-auth --auth-script auth.py`：使用导出
   `auth_handler(token: int) -> bool` 的 Python 文件做自定义认证
 

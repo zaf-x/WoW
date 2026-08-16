@@ -25,13 +25,14 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "rich"
+  "rich",
+  "wow-common"
 ]
 
 [project.urls]
-Documentation = "https://github.com/zaf-x/wow-client#readme"
-Issues = "https://github.com/zaf-x/wow-client/issues"
-Source = "https://github.com/zaf-x/wow-client"
+Documentation = "https://github.com/zaf-x/WoW#readme"
+Issues = "https://github.com/zaf-x/WoW/issues"
+Source = "https://github.com/zaf-x/WoW"
 
 [tool.hatch.version]
 path = "src/wow_client/__about__.py"

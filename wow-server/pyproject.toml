@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "wow-server"
 dynamic = ["version"]
-description = 'WoW VPN server: TLS endpoint with per-client TUN devices and NAT'
+description = 'WoW VPN server: TLS gateway with a single shared TUN device and NAT'
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -33,9 +33,9 @@ dependencies = [
 wow-server = "wow_server.__main__:main"
 
 [project.urls]
-Documentation = "https://github.com/zaf-x/wow-server#readme"
-Issues = "https://github.com/zaf-x/wow-server/issues"
-Source = "https://github.com/zaf-x/wow-server"
+Documentation = "https://github.com/zaf-x/WoW#readme"
+Issues = "https://github.com/zaf-x/WoW/issues"
+Source = "https://github.com/zaf-x/WoW"
 
 [tool.hatch.version]
 path = "src/wow_server/__about__.py"

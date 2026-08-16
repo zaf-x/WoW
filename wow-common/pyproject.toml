@@ -27,9 +27,9 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Documentation = "https://github.com/zaf-x/wow-common#readme"
-Issues = "https://github.com/zaf-x/wow-common/issues"
-Source = "https://github.com/zaf-x/wow-common"
+Documentation = "https://github.com/zaf-x/WoW#readme"
+Issues = "https://github.com/zaf-x/WoW/issues"
+Source = "https://github.com/zaf-x/WoW"
 
 [tool.hatch.version]
 path = "src/wow_common/__about__.py"

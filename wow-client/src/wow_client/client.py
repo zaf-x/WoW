@@ -284,7 +284,10 @@ class Client:
             if not infos:
                 raise ValueError("Cannot resolve server address")
             family, _, _, _, sockaddr = infos[0]
-            self.server_ip = sockaddr[0]
+            server_ip = sockaddr[0]
+            if not isinstance(server_ip, str):
+                raise ValueError("Cannot resolve server address")
+            self.server_ip = server_ip
             self.sock = socket.socket(family, socket.SOCK_STREAM)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_MARK, self.fwmark)
             self.sock.setblocking(False)

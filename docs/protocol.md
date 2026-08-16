@@ -2,10 +2,10 @@
 
 [English](protocol.md) | [中文](protocol.zh-CN.md)
 
-WoW is a VPN working on L2, data transfer via TCP
+WoW is an L3 (IP) VPN over a TLS-encrypted TCP connection.
 Works like this:
 
-Client Application -> TUN -----TCP-----> Server -> TUN -> Physical interface
+Client Application -> TUN -----TCP + TLS-----> Server -> TUN -> Physical interface
 
 ## Basic Message Struct
 

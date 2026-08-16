@@ -23,12 +23,13 @@ wow-server --host 0.0.0.0 --port 9999 \
            --cert cert.pem --key key.pem [--masquerade]
 ```
 
-Every option can also be set through a `WOW_*` environment variable
+Most options can also be set through a `WOW_*` environment variable
 (`WOW_HOST`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`, `WOW_CERT`, `WOW_KEY`,
 `WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`, `WOW_SCRIPT_AUTH`,
-`WOW_AUTH_SCRIPT`).
+`WOW_AUTH_SCRIPT`); `--masquerade` and `--verbose` are CLI-only.
 
-- `--masquerade`: silently drop bad auth attempts instead of replying
+- `--masquerade`: reply to bad auth attempts with a fake success, then
+  silently drop their traffic
 - `--script-auth --auth-script auth.py`: use a Python file exporting
   `auth_handler(token: int) -> bool` for custom authentication
 

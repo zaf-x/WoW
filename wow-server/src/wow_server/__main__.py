@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--key", default=os.environ.get("WOW_KEY"),
                         help="TLS private key file (env WOW_KEY)")
     parser.add_argument("--masquerade", action="store_true",
-                        help="silently drop bad auth instead of replying (camouflage)")
+                        help="reply to bad auth with a fake success, then drop their traffic (camouflage)")
     parser.add_argument("--ipv6-prefix", default=os.environ.get("WOW_IPV6_PREFIX", "fd08::/64"),
                         help="IPv6 tunnel network, e.g. a provider-routed public /64 "
                              "(default: fd08::/64, env WOW_IPV6_PREFIX)")

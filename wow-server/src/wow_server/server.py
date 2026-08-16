@@ -47,8 +47,9 @@ class Server:
         port: Listen port.
         auth_handler: The handler of authentication, accepts a 128-bit authentication token as an integer.
         interface: Physical egress interface used for NAT.
-        masquerade: If True, silently drop bad authentication attempts
-            instead of replying with a failure (camouflage).
+        masquerade: If True, answer bad authentication attempts with a
+            fake success and silently drop the connection's traffic
+            (camouflage).
         ipv6_net: The IPv6 tunnel network clients are assigned from.
         tun: The shared gateway TUN device, created in :meth:`serve`.
         addr_map: Maps ``(family, address)`` to the client owning that address.
