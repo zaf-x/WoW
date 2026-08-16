@@ -1,6 +1,6 @@
 # wow-client
 
-The client for the [WoW VPN](../README.md): connects to the server over
+The client for the [WoW VPN](https://github.com/zaf-x/WoW#readme): connects to the server over
 TLS, authenticates with a 128-bit token, sets up a local TUN device and
 routes traffic through the tunnel. A live status panel shows transfer
 rates and client↔server / client↔internet latency.

@@ -1,6 +1,6 @@
 # wow-server
 
-The server for the [WoW VPN](../README.md): accepts TLS clients,
+The server for the [WoW VPN](https://github.com/zaf-x/WoW#readme): accepts TLS clients,
 authenticates them with a shared 128-bit token (or a custom auth script),
 creates a per-client TUN device and NATs their traffic out through the
 physical interface. Each client is assigned IPv4 (`10.8.0.0/24`) and

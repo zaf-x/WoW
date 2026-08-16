@@ -77,7 +77,8 @@ wow-client launch
 - 用 `--masquerade` 启动服务端，可以让未认证的扫描器看到的是
   一个"死端口"。
 - Token 认证是"全有或全无"的：需要按客户端做策略、限流或日志时，
-  请使用 `--script-auth`。
+  请使用 `--script-auth`。可插拔认证 API 见
+  [docs/authentication.md](docs/authentication.md)。
 
 ## License
 

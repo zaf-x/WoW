@@ -77,7 +77,9 @@ wow-client launch
 - Run the server with `--masquerade` to make it behave like a dead port
   to unauthenticated scanners.
 - Token-based auth is all-or-nothing: use `--script-auth` when you need
-  per-client policies, rate limiting or logging.
+  per-client policies, rate limiting or logging. See
+  [docs/authentication.md](docs/authentication.md) for the pluggable
+  authentication API.
 
 ## License
 
