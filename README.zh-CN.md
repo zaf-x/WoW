@@ -5,6 +5,7 @@
 [![wow-common](https://img.shields.io/pypi/v/wow-common.svg?label=wow-common)](https://pypi.org/project/wow-common)
 [![wow-client](https://img.shields.io/pypi/v/wow-client.svg?label=wow-client)](https://pypi.org/project/wow-client)
 [![wow-server](https://img.shields.io/pypi/v/wow-server.svg?label=wow-server)](https://pypi.org/project/wow-server)
+[![CI](https://github.com/zaf-x/WoW/actions/workflows/ci.yml/badge.svg)](https://github.com/zaf-x/WoW/actions/workflows/ci.yml)
 
 一个轻量级 Linux L2 VPN：IP 数据包通过 TLS 加密的 TCP 隧道，在客户端与
 服务端的 TUN 设备之间传输。
@@ -67,6 +68,9 @@ wow-server --host 0.0.0.0 --port 9999 \
 - `--masquerade`：静默丢弃错误认证请求，不再回复
 - `--script-auth --auth-script auth.py`：使用导出
   `auth_handler(token: int) -> bool` 的 Python 文件做自定义认证
+
+完整的生产环境部署（systemd、TLS、安全加固）见
+[docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)。
 
 ### 客户端
 

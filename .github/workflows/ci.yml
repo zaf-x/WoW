@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install packages
+        run: pip install ./wow-common ./wow-client ./wow-server
+      - name: Compile check
+        run: python -m compileall -q wow-common/src wow-client/src wow-server/src
+      - name: Protocol round-trip
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, "wow-common/src")
+          from wow_common.protocol import (
+              Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign,
+              ApplicationData, Ping, Pong, unpack,
+          )
+          for pkt in (
+              Authentication(0x00112233445566778899aabbccddeeff),
+              AuthenticationResponse(True),
+              IPv4Assign(0x0A080002, 24),
+              IPv6Assign((0xFD08 << 112) | 2, 64),
+              ApplicationData(b"\x45\x00\x00\x14" + b"\x00" * 16),
+              Ping(),
+              Pong(),
+          ):
+              assert unpack(pkt.pack()) == pkt
+          print("protocol round-trip OK")
+          EOF

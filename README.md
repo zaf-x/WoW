@@ -5,6 +5,7 @@
 [![wow-common](https://img.shields.io/pypi/v/wow-common.svg?label=wow-common)](https://pypi.org/project/wow-common)
 [![wow-client](https://img.shields.io/pypi/v/wow-client.svg?label=wow-client)](https://pypi.org/project/wow-client)
 [![wow-server](https://img.shields.io/pypi/v/wow-server.svg?label=wow-server)](https://pypi.org/project/wow-server)
+[![CI](https://github.com/zaf-x/WoW/actions/workflows/ci.yml/badge.svg)](https://github.com/zaf-x/WoW/actions/workflows/ci.yml)
 
 A lightweight L2 VPN for Linux: IP packets travel between a client-side
 and a server-side TUN device over a TLS-encrypted TCP tunnel.
@@ -67,6 +68,9 @@ Every option can also be set through a `WOW_*` environment variable
 - `--masquerade`: silently drop bad auth attempts instead of replying
 - `--script-auth --auth-script auth.py`: plug in a Python file exporting
   `auth_handler(token: int) -> bool` for custom authentication
+
+For a full production setup (systemd, TLS, hardening), see
+[docs/deployment.md](docs/deployment.md).
 
 ### Client
 
