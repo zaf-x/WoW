@@ -243,6 +243,21 @@ class Tun:
                     check=False,
                 )
 
+    @staticmethod
+    def _delete_rule_until_gone(cmd: list[str]) -> None:
+        """Delete an iptables/ip6tables rule repeatedly until it no longer exists.
+
+        ``-D`` removes at most one matching rule, so repeated runs (restarts
+        that die before teardown) can leave duplicates; loop until the rule
+        is fully gone so setup converges to exactly one copy. Missing tools
+        (e.g. no ip6tables on the host) are treated as nothing to clean.
+        """
+        try:
+            while subprocess.run(cmd, check=False).returncode == 0:
+                pass
+        except OSError:
+            return
+
     def setup_nat(self, out_iface: str, ipv6_masquerade: bool = True) -> None:
         """Enable kernel forwarding and configure MASQUERADE to NAT TUN traffic out through the physical interface.
 
@@ -267,6 +282,9 @@ class Tun:
                 f.write("1")
         except OSError:
             logger.warning("Cannot enable IPv6 forwarding (IPv6 disabled on this host?)")
+        self._delete_rule_until_gone(
+            ["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
+        )
         subprocess.run(
             ["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"],
             check=True,
@@ -285,6 +303,12 @@ class Tun:
             ip6_cmds.append(
                 ["ip6tables", "-t", "nat", "-A", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
             )
+        else:
+            # Clear a stale NAT66 rule from a previous run (e.g. when the
+            # prefix changed from ULA to a global routed prefix).
+            self._delete_rule_until_gone(
+                ["ip6tables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
+            )
         ip6_cmds += [
             ["ip6tables", "-A", "FORWARD", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
             ["ip6tables", "-A", "FORWARD", "-i", out_iface, "-o", self.name,
@@ -302,9 +326,11 @@ class Tun:
         if not hasattr(self, "_nat_iface"):
             return
         out_iface = self._nat_iface
-        subprocess.run(
-            ["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"],
-            check=True,
+        self._delete_rule_until_gone(
+            ["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
+        )
+        self._delete_rule_until_gone(
+            ["ip6tables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
         )
         subprocess.run(
             ["iptables", "-D", "FORWARD", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
@@ -315,12 +341,7 @@ class Tun:
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
             check=True,
         )
-        ip6_cmds = []
-        if getattr(self, "_ipv6_masquerade", True):
-            ip6_cmds.append(
-                ["ip6tables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
-            )
-        ip6_cmds += [
+        ip6_cmds = [
             ["ip6tables", "-D", "FORWARD", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
             ["ip6tables", "-D", "FORWARD", "-i", out_iface, "-o", self.name,
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
