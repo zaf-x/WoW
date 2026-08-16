@@ -55,7 +55,7 @@ class Server:
         addr_map: Maps ``(family, address)`` to the client owning that address.
     """
 
-    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False):
+    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False, idle_callback: Callable[[], None] | None = None, idle_timer: int = 600):
         """Initialize the server.
 
         Args:
@@ -72,6 +72,11 @@ class Server:
             proxy_ndp: Proxy-NDP for client addresses on the physical
                 interface. Needed for on-link IPv6 prefixes such as AWS
                 EC2, where the instance owns a single /128 of the subnet.
+            idle_callback: Optional callable run when the server has had
+                no clients for ``idle_timer`` seconds (e.g. auto-shutdown
+                of an unused instance).
+            idle_timer: Seconds without clients before ``idle_callback``
+                fires (default 600).
         """
         self.host = host
         self.port = port
@@ -88,6 +93,29 @@ class Server:
         self.remotes: list[Remote] = []
         self.tun: Tun | None = None
         self.addr_map: dict[tuple[int, int], Remote] = {}
+
+        self.idle_callback = idle_callback
+        self.idle_timer = idle_timer
+
+    async def idle_scan(self) -> None:
+        """Invoke ``idle_callback`` once the server has had no clients for ``idle_timer`` seconds.
+
+        Polls cheaply (1s while clients are connected) and sleeps the full
+        idle window only while the server is empty, so the callback fires
+        only after a continuous idle period. The callback must return
+        quickly — it runs on the event loop (blocking work should spawn
+        its own thread/task).
+        """
+        if not self.idle_callback:
+            return
+        while self.running:
+            if self.remotes:
+                await asyncio.sleep(1)
+                continue
+            await asyncio.sleep(self.idle_timer)
+            if self.running and not self.remotes:
+                self.idle_callback()
+                return
 
     async def handle_stream(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -204,6 +232,7 @@ class Server:
         tun.setup_nat(self.interface, ipv6_masquerade=not self.ipv6_net.is_global)
         self.tun = tun
         asyncio.get_running_loop().add_reader(tun.fileno(), self.on_gateway_readable)
+        asyncio.create_task(self.idle_scan())
 
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_ctx.load_cert_chain(self.cert, self.key)

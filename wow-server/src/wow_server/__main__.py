@@ -29,6 +29,12 @@ def parse_args() -> argparse.Namespace:
                         help="Runs a python script for authentication")
     parser.add_argument("--auth-script", type=str, default=os.environ.get("WOW_AUTH_SCRIPT", ""),
                         help="The file used to authenticate")
+    parser.add_argument("--idle-script", type=str, default=os.environ.get("WOW_IDLE_SCRIPT", ""),
+                        help="Python file exporting idle_callback(), run after the server has "
+                             "had no clients for --idle-timer seconds (env WOW_IDLE_SCRIPT)")
+    parser.add_argument("--idle-timer", type=int, default=int(os.environ.get("WOW_IDLE_TIMER", "600")),
+                        help="seconds without clients before idle_callback() fires "
+                             "(default: 600, env WOW_IDLE_TIMER)")
     parser.add_argument("--token", default=os.environ.get("WOW_TOKEN"),
                         help="128-bit auth token as 32 hex chars (env WOW_TOKEN)")
     parser.add_argument("--iface", default=os.environ.get("WOW_IFACE"),
@@ -92,10 +98,26 @@ def main() -> None:
 
     if not auth_handler:
         auth_handler = lambda x: False # Satisfy PyLance
-    
+
+    idle_callback: Callable[[], None] | None = None
+    if args.idle_script:
+        module_name = os.path.splitext(os.path.basename(args.idle_script))[0]
+        spec = importlib.util.spec_from_file_location(module_name, args.idle_script)
+        if spec is None or spec.loader is None:
+            print("E: invalid script: import failed")
+            exit(1)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        try:
+            idle_callback = module.idle_callback
+        except AttributeError:
+            print("E: invalid script: must provide `idle_callback` function")
+            exit(1)
+
     server = Server(args.host, args.port, auth_handler, args.iface,
                     args.cert, args.key, masquerade=args.masquerade,
-                    ipv6_prefix=args.ipv6_prefix, proxy_ndp=args.ipv6_proxy_ndp)
+                    ipv6_prefix=args.ipv6_prefix, proxy_ndp=args.ipv6_proxy_ndp,
+                    idle_callback=idle_callback, idle_timer=args.idle_timer)
     try:
         asyncio.run(server.serve())
     except KeyboardInterrupt:

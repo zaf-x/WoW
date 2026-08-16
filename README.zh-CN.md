@@ -81,12 +81,16 @@ wow-server --host 0.0.0.0 --port 9999 \
 
 大多数选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
 `WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
-`WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`）；
-`--masquerade` 与 `--verbose` 仅支持命令行。
+`WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`、
+`WOW_IDLE_SCRIPT`、`WOW_IDLE_TIMER`）；`--masquerade` 与 `--verbose`
+仅支持命令行。
 
 - `--masquerade`：对错误认证回复假成功，随后静默丢弃其流量
 - `--script-auth --auth-script auth.py`：使用导出
   `auth_handler(token: int) -> bool` 的 Python 文件做自定义认证
+- `--idle-script idle.py --idle-timer 600`：当服务端在指定秒数内没有
+  任何客户端时，运行 Python 文件里的 `idle_callback()`——例如闲置实例
+  自动关机
 
 完整的生产环境部署（systemd、TLS、安全加固）见
 [docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)。
