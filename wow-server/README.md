@@ -7,7 +7,8 @@
 
 The server for the [WoW VPN](https://github.com/zaf-x/WoW#readme): accepts TLS clients,
 authenticates them with a shared 128-bit token (or a custom auth script),
-creates a per-client TUN device and NATs their traffic out through the
+creates a gateway TUN device (one per server, shared by all clients)
+and NATs their traffic out through the
 physical interface. Each client is assigned IPv4 (`10.8.0.0/24`) and an
 IPv6 tunnel address — ULA `fd08::/64` by default, or a public prefix
 (`--ipv6-prefix` / `WOW_IPV6_PREFIX`) for global IPv6.

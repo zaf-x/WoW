@@ -99,10 +99,11 @@ systemctl enable --now wow-server
 ```
 
 > `WOW_IFACE` must be the physical egress interface (find it with
-> `ip route get 1.1.1.1`). The server creates a per-client TUN device,
-> enables IPv4/IPv6 forwarding and sets up iptables/ip6tables
-> MASQUERADE on that interface. If IPv6 NAT is unavailable the tunnel
-> still carries IPv6 between peers, just not to the internet.
+> `ip route get 1.1.1.1`). The server creates a single gateway TUN
+> device (`wowgateway`) shared by all clients, enables IPv4/IPv6
+> forwarding and sets up iptables/ip6tables MASQUERADE on that
+> interface. If IPv6 NAT is unavailable the tunnel still carries IPv6
+> between peers, just not to the internet.
 
 ## 6. Verify the server
 
@@ -144,10 +145,10 @@ curl -4 https://api.ipify.org   # public IPv4 via the tunnel
 curl -6 https://api6.ipify.org  # public IPv6 via the tunnel
 ```
 
-Each client gets its own point-to-point `/126` link, so every TUN —
-server side and client side — has a unique address. For client #N the
-server-side link address is `prefix::(4N-7)` (`fd08::1` for the first
-client), the client address is `prefix::(4N-6)` (`fd08::2`).
+Clients are assigned flat addresses from the tunnel networks on the
+shared gateway TUN: client #N gets `10.8.0.N/24` and `prefix::N`
+(the first client is `10.8.0.2` / `fd08::2`; the gateway itself is
+`10.8.0.1` / `fd08::1`).
 
 ## 9. Public IPv6 (optional)
 

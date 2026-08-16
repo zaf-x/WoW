@@ -17,10 +17,10 @@ accept or reject it. Two modes are available:
    (protocol type 0) carrying the 128-bit token as an integer.
 2. The server calls its auth handler with that integer:
    `auth_handler(token) -> bool`.
-3. `True` — the server creates a per-client TUN device, assigns IPv4
-   (`10.8.0.0/24`) and IPv6 (`fd08::/64`) tunnel addresses, and replies
-   with `AuthenticationResponse(True)` followed by `IPv4Assign` and
-   `IPv6Assign`.
+3. `True` — the server assigns IPv4 (`10.8.0.0/24`) and IPv6
+   (`fd08::/64`) tunnel addresses, registers the client on the shared
+   gateway TUN, and replies with `AuthenticationResponse(True)` followed
+   by `IPv4Assign` and `IPv6Assign`.
 4. `False` — the server replies `AuthenticationResponse(False)`, or
    pretends to succeed and silently drops everything in
    [masquerade mode](#masquerade-mode).

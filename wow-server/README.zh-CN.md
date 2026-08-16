@@ -6,8 +6,8 @@
 [English](https://github.com/zaf-x/WoW/blob/main/wow-server/README.md) | [中文](https://github.com/zaf-x/WoW/blob/main/wow-server/README.zh-CN.md)
 
 [WoW VPN](https://github.com/zaf-x/WoW#readme) 的服务端：接受 TLS 客户端，
-使用共享 128-bit token（或自定义认证脚本）认证，为每个客户端创建 TUN
-设备并对其流量做 NAT。每个客户端分配 IPv4（`10.8.0.0/24`）与一个 IPv6
+使用共享 128-bit token（或自定义认证脚本）认证，创建一张网关 TUN
+设备（每台服务器一张，所有客户端共用）并对其流量做 NAT。每个客户端分配 IPv4（`10.8.0.0/24`）与一个 IPv6
 隧道地址——默认 ULA `fd08::/64`，也可用 `--ipv6-prefix` /
 `WOW_IPV6_PREFIX` 配公网前缀，让客户端拿到全局 IPv6。
 

@@ -97,9 +97,10 @@ systemctl enable --now wow-server
 ```
 
 > `WOW_IFACE` 必须是物理出网网卡（用 `ip route get 1.1.1.1` 查看）。
-> 服务端会为每个客户端创建 TUN 设备，开启 IPv4/IPv6 转发，并在该
-> 网卡上配置 iptables/ip6tables MASQUERADE。若内核不支持 IPv6 NAT，
-> 隧道内的 IPv6 互通不受影响，只是无法通过 NAT66 上网。
+> 服务端会创建一张所有客户端共用的网关 TUN 设备（`wowgateway`），
+> 开启 IPv4/IPv6 转发，并在该网卡上配置 iptables/ip6tables
+> MASQUERADE。若内核不支持 IPv6 NAT，隧道内的 IPv6 互通不受影响，
+> 只是无法通过 NAT66 上网。
 
 ## 6. 验证服务端
 
@@ -140,10 +141,9 @@ curl -4 https://api.ipify.org   # 经隧道的公网 IPv4
 curl -6 https://api6.ipify.org  # 经隧道的公网 IPv6
 ```
 
-每个客户端有一条独立的点对点 `/126` 链路，服务端和客户端两端的 TUN
-都有唯一地址。第 N 个客户端的服务端链路地址为 `prefix::(4N-7)`
-（第 1 个客户端即 `fd08::1`），客户端地址为 `prefix::(4N-6)`
-（`fd08::2`）。
+客户端在共享网关 TUN 上按扁平地址分配：第 N 个客户端拿到
+`10.8.0.N/24` 和 `prefix::N`（第 1 个客户端即 `10.8.0.2` /
+`fd08::2`；网关本身是 `10.8.0.1` / `fd08::1`）。
 
 ## 9. 公网 IPv6（可选）
 

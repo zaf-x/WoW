@@ -15,9 +15,10 @@ WoW 使用共享密钥握手：客户端在 TLS 会话内发送 128-bit 认证 t
 1. 客户端通过 TLS 连接，发送 `Authentication` 报文（协议类型 0），
    携带 128-bit token 的整数形式。
 2. 服务端用该整数调用认证处理器：`auth_handler(token) -> bool`。
-3. `True` — 服务端创建 per-client TUN 设备，分配 IPv4（`10.8.0.0/24`）
-   与 IPv6（`fd08::/64`）隧道地址，并回复 `AuthenticationResponse(True)`，
-   随后发送 `IPv4Assign` 和 `IPv6Assign`。
+3. `True` — 服务端分配 IPv4（`10.8.0.0/24`）与 IPv6（`fd08::/64`）
+   隧道地址，把客户端注册到共享的网关 TUN 上，并回复
+   `AuthenticationResponse(True)`，随后发送 `IPv4Assign` 和
+   `IPv6Assign`。
 4. `False` — 服务端回复 `AuthenticationResponse(False)`；或在
    [伪装模式](#伪装模式) 下假装成功并静默丢弃所有数据。
 

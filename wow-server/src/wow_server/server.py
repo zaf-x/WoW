@@ -17,27 +17,30 @@ class Remote:
     Attributes:
         stream_id: Random hex identifier for the connection.
         authorized: Whether the client has successfully authenticated.
-        tun: The TUN device created for this client, if any.
-        susp: Is this remote marked as some kind of auto inspector
+        susp: Whether this remote is marked as suspicious (masquerade).
         reader: Stream reader for the TLS connection.
         writer: Stream writer for the TLS connection.
+        client_v4: Assigned tunnel IPv4 address as an integer, if any.
+        client_v6: Assigned tunnel IPv6 address as an integer, if any.
     """
 
     stream_id: str
     authorized: bool
-    tun: Tun | None
     susp: bool
 
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
+    client_v4: int | None = None
     client_v6: int | None = None
 
 class Server:
     """WoW VPN server.
 
     Listens for TLS connections, authenticates clients with a shared
-    128-bit token, creates a per-client TUN device with NAT, and shuttles
-    IP packets between each client's TUN device and its tunnel.
+    128-bit token, and shuttles IP packets between a single gateway TUN
+    device (``wowgateway``) and the clients' tunnels. The gateway acts as
+    a router: its egress is the physical interface (with NAT), and reply
+    packets are demultiplexed to the owning client by destination address.
 
     Attributes:
         host: Listen address.
@@ -47,6 +50,8 @@ class Server:
         masquerade: If True, silently drop bad authentication attempts
             instead of replying with a failure (camouflage).
         ipv6_net: The IPv6 tunnel network clients are assigned from.
+        tun: The shared gateway TUN device, created in :meth:`serve`.
+        addr_map: Maps ``(family, address)`` to the client owning that address.
     """
 
     def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False):
@@ -74,12 +79,14 @@ class Server:
         self.auth_handler = auth_handler
         self.masquerade = masquerade
         self.interface = interface
-        self.ip_cnt = 2
+        self.ip_cnt = 1
         self.proxy_ndp = proxy_ndp
         self.ipv6_net = ipaddress.IPv6Network(ipv6_prefix, strict=False)
 
         self.running = True
         self.remotes: list[Remote] = []
+        self.tun: Tun | None = None
+        self.addr_map: dict[tuple[int, int], Remote] = {}
 
     async def handle_stream(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -92,7 +99,7 @@ class Server:
         """
         peer_addr = writer.get_extra_info("peername")
         rich.print(f"[green]New connection from {peer_addr}[/green]")
-        remote = Remote(uuid.uuid4().hex, False, None, False, reader, writer)
+        remote = Remote(uuid.uuid4().hex, False, False, reader, writer)
         self.remotes.append(remote)
 
         try:
@@ -124,13 +131,12 @@ class Server:
         Args:
             remote: The connection to tear down.
         """
-        if remote.tun is not None:
-            if self.proxy_ndp and remote.client_v6 is not None:
-                remote.tun.teardown_proxy_ndp(str(ipaddress.IPv6Address(remote.client_v6)))
-            asyncio.get_running_loop().remove_reader(remote.tun.fileno())
-            remote.tun.teardown_nat()
-            remote.tun.close()
-            remote.tun = None
+        if remote.client_v4 is not None:
+            self.addr_map.pop((4, remote.client_v4), None)
+        if remote.client_v6 is not None:
+            self.addr_map.pop((6, remote.client_v6), None)
+            if self.proxy_ndp and self.tun is not None:
+                self.tun.teardown_proxy_ndp(str(ipaddress.IPv6Address(remote.client_v6)))
         remote.writer.close()
         await remote.writer.wait_closed()
 
@@ -153,41 +159,31 @@ class Server:
                 remote.susp = True
                 print(f"Susp remote: {remote}")
             remote.authorized = True
-            remote.tun = Tun(f"wowtun{remote.stream_id[:9]}")
-            remote.tun.up()
-            remote.tun.setup_nat(self.interface, ipv6_masquerade=not self.ipv6_net.is_global)
-            loop = asyncio.get_running_loop()
-            loop.add_reader(remote.tun.fileno(), lambda: self.on_tun_readable(remote))
             self.ip_cnt += 1
-            # Tunnel networks: IPv4 10.8.0.0/24; IPv6 prefix configurable
+            # Flat tunnel networks behind the gateway TUN: IPv4 10.8.0.0/24
+            # (server 10.8.0.1, clients 10.8.0.N); IPv6 prefix configurable
             # (default ULA fd08::/64, or a public prefix for global addresses).
             client_ip = 0xA080000 | self.ip_cnt
-            client_addr = str(ipaddress.IPv4Address(client_ip))
-            remote.tun.add_route(f"{client_addr}/32")
-            remote.tun.set_addr("10.8.0.1/24")
-            # IPv6: each client gets its own point-to-point /126 link, so
-            # every TUN — server side and client side — has a unique
-            # address. For client #N: server=prefix::(4N-7), client=prefix::(4N-6).
-            link_base = int(self.ipv6_net.network_address) | (4 * (self.ip_cnt - 2))
-            server_v6 = link_base + 1
-            client_v6 = link_base + 2
-            remote.tun.set_addr(f"{ipaddress.IPv6Address(server_v6)}/126")
-            if self.proxy_ndp and self.ipv6_net.is_global:
+            client_v6 = int(self.ipv6_net.network_address) | self.ip_cnt
+            self.addr_map[(4, client_ip)] = remote
+            self.addr_map[(6, client_v6)] = remote
+            if self.proxy_ndp and self.ipv6_net.is_global and self.tun is not None:
                 # On-link prefixes (AWS EC2): answer NDP for the client's
                 # global address on the physical interface.
-                remote.tun.setup_proxy_ndp(self.interface, str(ipaddress.IPv6Address(client_v6)))
+                self.tun.setup_proxy_ndp(self.interface, str(ipaddress.IPv6Address(client_v6)))
+            remote.client_v4 = client_ip
             remote.client_v6 = client_v6
 
             return [
                 AuthenticationResponse(True),
                 IPv4Assign(client_ip, 24),
-                IPv6Assign(client_v6, 126),
+                IPv6Assign(client_v6, self.ipv6_net.prefixlen),
             ]
         if isinstance(packet, ApplicationData):
-            if not remote.tun:
+            if not self.tun:
                 return []
 
-            remote.tun.write(packet.data)
+            self.tun.write(packet.data)
         if isinstance(packet, Ping):
             return [Pong()]
 
@@ -196,7 +192,18 @@ class Server:
         return []
 
     async def serve(self) -> None:
-        """Start the TLS listener and serve clients forever."""
+        """Create the gateway TUN, then start the TLS listener and serve clients forever."""
+        # One shared gateway TUN acting as the router for all clients. It
+        # holds the tunnel networks, NATs on egress and demultiplexes
+        # replies to the owning client by destination address.
+        tun = Tun("wowgateway")
+        tun.up()
+        tun.set_addr("10.8.0.1/24")
+        tun.set_addr(f"{self.ipv6_net.network_address + 1}/{self.ipv6_net.prefixlen}")
+        tun.setup_nat(self.interface, ipv6_masquerade=not self.ipv6_net.is_global)
+        self.tun = tun
+        asyncio.get_running_loop().add_reader(tun.fileno(), self.on_gateway_readable)
+
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_ctx.load_cert_chain(self.cert, self.key)
 
@@ -212,20 +219,37 @@ class Server:
             await server.serve_forever()
 
     async def stop(self):
-        """Stop the server and tear down all connected clients."""
+        """Stop the server, tear down all connected clients and the gateway TUN."""
         self.running = False
         while self.remotes:
             remote = self.remotes.pop()
             await self.teardown_remote(remote)
+        if self.tun is not None:
+            loop = asyncio.get_running_loop()
+            loop.remove_reader(self.tun.fileno())
+            self.tun.teardown_nat()
+            self.tun.close()
+            self.tun = None
 
-    def on_tun_readable(self, remote: Remote):
-        """Event-loop callback: read a reply packet from the client's TUN and send it down the tunnel.
+    def on_gateway_readable(self):
+        """Event-loop callback: read a packet from the gateway TUN and send it to the owning client.
 
-        Args:
-            remote: The connection whose TUN device became readable.
+        The packet is routed to whichever client was assigned its
+        destination address.
         """
-        if remote.tun is None or remote.writer.is_closing():
+        if self.tun is None:
             return
-        data = remote.tun.read()
-        packet = ApplicationData(data)
-        remote.writer.write(packet.pack())
+        data = self.tun.read()
+        if len(data) < 20:
+            return
+        version = data[0] >> 4
+        if version == 4:
+            key = (4, int.from_bytes(data[16:20], "big"))
+        elif version == 6 and len(data) >= 40:
+            key = (6, int.from_bytes(data[24:40], "big"))
+        else:
+            return
+        remote = self.addr_map.get(key)
+        if remote is None or remote.writer.is_closing():
+            return
+        remote.writer.write(ApplicationData(data).pack())
