@@ -7,8 +7,9 @@
 
 [WoW VPN](https://github.com/zaf-x/WoW#readme) 的服务端：接受 TLS 客户端，
 使用共享 128-bit token（或自定义认证脚本）认证，为每个客户端创建 TUN
-设备并对其流量做 NAT。每个客户端分配 IPv4（`10.8.0.0/24`）与 IPv6
-（`fd08::/64`）隧道地址。
+设备并对其流量做 NAT。每个客户端分配 IPv4（`10.8.0.0/24`）与一个 IPv6
+隧道地址——默认 ULA `fd08::/64`，也可用 `--ipv6-prefix` /
+`WOW_IPV6_PREFIX` 配公网前缀，让客户端拿到全局 IPv6。
 
 需要 Linux、root、`/dev/net/tun` 和 TLS 证书。
 
@@ -21,8 +22,8 @@ wow-server --host 0.0.0.0 --port 9999 \
 ```
 
 所有选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
-`WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_SCRIPT_AUTH`、
-`WOW_AUTH_SCRIPT`）。
+`WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
+`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`）。
 
 - `--masquerade`：静默丢弃错误认证请求，不再回复
 - `--script-auth --auth-script auth.py`：使用导出

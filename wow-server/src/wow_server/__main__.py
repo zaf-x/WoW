@@ -39,6 +39,9 @@ def parse_args() -> argparse.Namespace:
                         help="TLS private key file (env WOW_KEY)")
     parser.add_argument("--masquerade", action="store_true",
                         help="silently drop bad auth instead of replying (camouflage)")
+    parser.add_argument("--ipv6-prefix", default=os.environ.get("WOW_IPV6_PREFIX", "fd08::/64"),
+                        help="IPv6 tunnel network, e.g. a provider-routed public /64 "
+                             "(default: fd08::/64, env WOW_IPV6_PREFIX)")
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
 
     args = parser.parse_args()
@@ -87,7 +90,8 @@ def main() -> None:
         auth_handler = lambda x: False # Satisfy PyLance
     
     server = Server(args.host, args.port, auth_handler, args.iface,
-                    args.cert, args.key, masquerade=args.masquerade)
+                    args.cert, args.key, masquerade=args.masquerade,
+                    ipv6_prefix=args.ipv6_prefix)
     try:
         asyncio.run(server.serve())
     except KeyboardInterrupt:

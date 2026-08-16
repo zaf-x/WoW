@@ -144,7 +144,41 @@ curl -4 https://api.ipify.org   # public IPv4 via the tunnel
 curl -6 https://api6.ipify.org  # public IPv6 via the tunnel
 ```
 
-## 9. Hardening
+## 9. Public IPv6 (optional)
+
+By default clients get ULA IPv6 (`fd08::/64`) and are NATed like IPv4.
+To hand out **global IPv6 addresses** instead, point the tunnel network
+at a public prefix the provider routes to your server:
+
+```ini
+WOW_IPV6_PREFIX=2001:db8:1:2::/64
+```
+
+(or pass `--ipv6-prefix` on the command line). NAT66 is then disabled
+automatically, so clients reach the internet with their own global
+address — true end-to-end IPv6, no NAT.
+
+> `2001:db8::/32` is the RFC 3849 documentation range, shown as a
+> placeholder — use your provider's real global prefix. NAT66 stays on
+> for non-global prefixes (ULA, documentation), so the auto-off only
+> kicks in with a genuinely routable range.
+
+Provider setups differ:
+
+- **Routed prefix** (most VPS "additional IPv6" ranges): nothing else to
+  do — the server forwards the prefix out of the physical interface.
+- **On-link prefix** (e.g. AWS EC2): the kernel must answer NDP for the
+  client addresses. Enable proxy NDP on the egress interface and pin
+  each client address:
+
+  ```console
+  sysctl -w net.ipv6.conf.eth0.proxy_ndp=1
+  ip -6 neigh add proxy <client-addr> dev eth0
+  ```
+
+Then verify by pinging a client's address from another host.
+
+## 10. Hardening
 
 - Run with `--masquerade` (add it to the unit's `ExecStart` line, e.g.
   `ExecStart=/opt/wow/venv/bin/wow-server --masquerade`) so failed auth

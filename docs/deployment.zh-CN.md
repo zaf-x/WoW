@@ -140,7 +140,38 @@ curl -4 https://api.ipify.org   # 经隧道的公网 IPv4
 curl -6 https://api6.ipify.org  # 经隧道的公网 IPv6
 ```
 
-## 9. 安全加固
+## 9. 公网 IPv6（可选）
+
+默认客户端拿到的是 ULA IPv6（`fd08::/64`），和 IPv4 一样走 NAT。想让
+客户端拿到**全局 IPv6 地址**，把隧道网络指向提供商路由到本机的公网
+前缀即可：
+
+```ini
+WOW_IPV6_PREFIX=2001:db8:1:2::/64
+```
+
+（或用命令行参数 `--ipv6-prefix`）。此时 NAT66 会自动关闭，客户端以
+自己的全局地址访问公网——真正的端到端 IPv6，没有 NAT。
+
+> `2001:db8::/32` 是 RFC 3849 的文档保留段，仅作占位示例——请换成
+> 提供商给你的真实公网前缀。非全局前缀（ULA、文档段）NAT66 保持
+> 开启，只有真正可路由的段才会自动关闭。
+
+按提供商情况分两种：
+
+- **路由前缀**（大多数 VPS 的"附加 IPv6"段）：无需额外配置——服务端
+  直接把前缀从物理网卡转发出去。
+- **链路前缀**（如 AWS EC2）：内核需要为客户端地址应答 NDP。在出网
+  网卡上开启 proxy NDP，并为每个客户端地址固定邻居条目：
+
+  ```console
+  sysctl -w net.ipv6.conf.eth0.proxy_ndp=1
+  ip -6 neigh add proxy <客户端地址> dev eth0
+  ```
+
+然后从另一台主机 ping 客户端地址验证。
+
+## 10. 安全加固
 
 - 加 `--masquerade`（在 unit 的 `ExecStart` 行末尾追加，例如
   `ExecStart=/opt/wow/venv/bin/wow-server --masquerade`）：认证失败

@@ -45,9 +45,10 @@ class Server:
         interface: Physical egress interface used for NAT.
         masquerade: If True, silently drop bad authentication attempts
             instead of replying with a failure (camouflage).
+        ipv6_net: The IPv6 tunnel network clients are assigned from.
     """
 
-    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False):
+    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64"):
         """Initialize the server.
 
         Args:
@@ -58,6 +59,9 @@ class Server:
             cert: Path to the TLS certificate file.
             key: Path to the TLS private key file.
             masquerade: Silently drop bad auth instead of replying.
+            ipv6_prefix: IPv6 tunnel network in CIDR form. Defaults to the
+                ULA ``fd08::/64``; use a global prefix (e.g. a provider
+                routed ``/64``) to hand clients public IPv6 addresses.
         """
         self.host = host
         self.port = port
@@ -67,6 +71,7 @@ class Server:
         self.masquerade = masquerade
         self.interface = interface
         self.ip_cnt = 2
+        self.ipv6_net = ipaddress.IPv6Network(ipv6_prefix, strict=False)
 
         self.running = True
         self.remotes: list[Remote] = []
@@ -143,22 +148,27 @@ class Server:
             remote.authorized = True
             remote.tun = Tun(f"wowtun{remote.stream_id[:9]}")
             remote.tun.up()
-            remote.tun.setup_nat(self.interface)
+            remote.tun.setup_nat(self.interface, ipv6_masquerade=not self.ipv6_net.is_global)
             loop = asyncio.get_running_loop()
             loop.add_reader(remote.tun.fileno(), lambda: self.on_tun_readable(remote))
             self.ip_cnt += 1
-            # Tunnel networks: IPv4 10.8.0.0/24, IPv6 fd08::/64 (ULA mirroring 10.8.0.0/24).
+            # Tunnel networks: IPv4 10.8.0.0/24; IPv6 prefix configurable
+            # (default ULA fd08::/64, or a public prefix for global addresses).
             client_ip = 0xA080000 | self.ip_cnt
             client_addr = str(ipaddress.IPv4Address(client_ip))
             remote.tun.add_route(f"{client_addr}/32")
             remote.tun.set_addr("10.8.0.1/24")
-            client_v6 = (0xFD08 << 112) | self.ip_cnt
-            remote.tun.set_addr("fd08::1/64")
+            client_v6 = int(self.ipv6_net.network_address) | self.ip_cnt
+            client_v6_addr = str(ipaddress.IPv6Address(client_v6))
+            # A /128 route pins replies to this client to its own TUN even
+            # though every per-client TUN shares the tunnel /64.
+            remote.tun.add_route(f"{client_v6_addr}/128")
+            remote.tun.set_addr(f"{self.ipv6_net.network_address + 1}/{self.ipv6_net.prefixlen}")
 
             return [
                 AuthenticationResponse(True),
                 IPv4Assign(client_ip, 24),
-                IPv6Assign(client_v6, 64),
+                IPv6Assign(client_v6, self.ipv6_net.prefixlen),
             ]
         if isinstance(packet, ApplicationData):
             if not remote.tun:

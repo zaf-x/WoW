@@ -96,10 +96,13 @@ class Tun:
     def add_route(self, cidr: str) -> None:
         """Add a route via this interface, e.g. ``'10.8.0.2/32'`` (used to steer reply packets into the TUN).
 
+        Handles both IPv4 (``ip route``) and IPv6 (``ip -6 route``).
+
         Args:
             cidr: Destination prefix to route through this interface.
         """
-        subprocess.run(["ip", "route", "add", cidr, "dev", self.name], check=True)
+        ip_cmd = ["ip", "-6"] if ipaddress.ip_network(cidr).version == 6 else ["ip"]
+        subprocess.run(ip_cmd + ["route", "add", cidr, "dev", self.name], check=True)
 
     def setup_routing(self, fwmark: int, table: int = 100, bypass_ip: str | None = None,
                       bypass_networks: Sequence[str] | None = None) -> None:
@@ -240,18 +243,23 @@ class Tun:
                     check=False,
                 )
 
-    def setup_nat(self, out_iface: str) -> None:
+    def setup_nat(self, out_iface: str, ipv6_masquerade: bool = True) -> None:
         """Enable kernel forwarding and configure MASQUERADE to NAT TUN traffic out through the physical interface.
 
         Configures both IPv4 (iptables) and IPv6 (ip6tables) NAT. The IPv6
         part is best-effort: when the kernel/distro lacks ip6tables NAT
         support the tunnel still carries IPv6 between peers, only the
-        NAT66 path to the internet is unavailable.
+        NAT66 path to the internet is unavailable. Set
+        ``ipv6_masquerade=False`` when clients hold global IPv6 addresses
+        (routed prefix) — they must not be NATed.
 
         Args:
             out_iface: Name of the physical egress interface, e.g. ``"ens5"``.
+            ipv6_masquerade: Whether to add the ip6tables MASQUERADE rule
+                for IPv6 client traffic.
         """
         self._nat_iface = out_iface
+        self._ipv6_masquerade = ipv6_masquerade
         with open("/proc/sys/net/ipv4/ip_forward", "w") as f:
             f.write("1")
         try:
@@ -272,16 +280,21 @@ class Tun:
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
             check=True,
         )
-        for cmd in (
-            ["ip6tables", "-t", "nat", "-A", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"],
+        ip6_cmds = []
+        if ipv6_masquerade:
+            ip6_cmds.append(
+                ["ip6tables", "-t", "nat", "-A", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
+            )
+        ip6_cmds += [
             ["ip6tables", "-A", "FORWARD", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
             ["ip6tables", "-A", "FORWARD", "-i", out_iface, "-o", self.name,
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
-        ):
+        ]
+        for cmd in ip6_cmds:
             try:
                 subprocess.run(cmd, check=True)
             except (OSError, subprocess.CalledProcessError):
-                logger.warning("ip6tables rule failed (IPv6 NAT unavailable?): %s", " ".join(cmd))
+                logger.warning("ip6tables rule failed: %s", " ".join(cmd))
         logger.info("NAT set: %s -> %s (MASQUERADE)", self.name, out_iface)
 
     def teardown_nat(self) -> None:
@@ -302,12 +315,17 @@ class Tun:
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
             check=True,
         )
-        for cmd in (
-            ["ip6tables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"],
+        ip6_cmds = []
+        if getattr(self, "_ipv6_masquerade", True):
+            ip6_cmds.append(
+                ["ip6tables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
+            )
+        ip6_cmds += [
             ["ip6tables", "-D", "FORWARD", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
             ["ip6tables", "-D", "FORWARD", "-i", out_iface, "-o", self.name,
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
-        ):
+        ]
+        for cmd in ip6_cmds:
             subprocess.run(cmd, check=False)
 
     def __enter__(self) -> "Tun":

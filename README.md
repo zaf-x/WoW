@@ -19,7 +19,8 @@ Client App -> TUN ---- TCP + TLS ----> Server -> TUN -> Physical interface
 ## Features
 
 - **L2 (IP) tunneling** over TCP with TLS encryption
-- **Dual-stack**: IPv4 (`10.8.0.0/24`) and IPv6 (`fd08::/64`) tunnel networks
+- **Dual-stack**: IPv4 (`10.8.0.0/24`) and IPv6 tunnel networks — ULA
+  `fd08::/64` by default, or a public prefix for global IPv6 addresses
 - **128-bit token authentication**, with pluggable custom auth handlers
 - **Masquerade mode**: silently drops bad auth attempts to camouflage the service
 - **NAT** for client traffic via `iptables` / `ip6tables`
