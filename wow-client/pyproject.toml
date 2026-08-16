@@ -5,22 +5,22 @@ build-backend = "hatchling.build"
 [project]
 name = "wow-client"
 dynamic = ["version"]
-description = ''
+description = 'WoW VPN client: TLS tunnel to the server with a local TUN device'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = "MIT"
-keywords = []
+keywords = ["vpn", "tun", "tunnel", "client"]
 authors = [
   { name = "zaf-x", email = "baoshuwen2013@outlook.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]

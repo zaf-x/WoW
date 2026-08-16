@@ -5,22 +5,22 @@ build-backend = "hatchling.build"
 [project]
 name = "wow-common"
 dynamic = ["version"]
-description = ''
+description = 'Shared wire protocol and TUN device helpers for the WoW VPN'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = "MIT"
-keywords = []
+keywords = ["vpn", "tun", "tunnel"]
 authors = [
   { name = "zaf-x", email = "baoshuwen2013@outlook.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
