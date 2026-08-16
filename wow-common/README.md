@@ -3,6 +3,8 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/wow-common.svg)](https://pypi.org/project/wow-common)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-common.svg)](https://pypi.org/project/wow-common)
 
+[English](https://github.com/zaf-x/WoW/blob/main/wow-common/README.md) | [中文](https://github.com/zaf-x/WoW/blob/main/wow-common/README.zh-CN.md)
+
 Shared building blocks for the [WoW VPN](https://github.com/zaf-x/WoW#readme):
 
 - `wow_common.protocol` — length-prefixed wire framing and packet
