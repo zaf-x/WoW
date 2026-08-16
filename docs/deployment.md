@@ -173,13 +173,12 @@ Provider setups differ:
 - **Routed prefix** (most VPS "additional IPv6" ranges): nothing else to
   do — the server forwards the prefix out of the physical interface.
 - **On-link prefix** (e.g. AWS EC2): the kernel must answer NDP for the
-  client addresses. Enable proxy NDP on the egress interface and pin
-  each client address:
-
-  ```console
-  sysctl -w net.ipv6.conf.eth0.proxy_ndp=1
-  ip -6 neigh add proxy <client-addr> dev eth0
-  ```
+  client addresses. Turn on `--ipv6-proxy-ndp` (or
+  `WOW_IPV6_PROXY_NDP=1`) and the server proxies NDP for every client
+  automatically. You must also **disable the source/destination check**
+  on the instance's network interface (EC2 console → Network Interfaces
+  → Change source/dest. check → Disabled) — otherwise the hypervisor
+  drops the forwarded client traffic.
 
 Then verify by pinging a client's address from another host.
 

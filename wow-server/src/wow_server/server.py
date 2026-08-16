@@ -30,6 +30,7 @@ class Remote:
 
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
+    client_v6: int | None = None
 
 class Server:
     """WoW VPN server.
@@ -48,7 +49,7 @@ class Server:
         ipv6_net: The IPv6 tunnel network clients are assigned from.
     """
 
-    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64"):
+    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False):
         """Initialize the server.
 
         Args:
@@ -62,6 +63,9 @@ class Server:
             ipv6_prefix: IPv6 tunnel network in CIDR form. Defaults to the
                 ULA ``fd08::/64``; use a global prefix (e.g. a provider
                 routed ``/64``) to hand clients public IPv6 addresses.
+            proxy_ndp: Proxy-NDP for client addresses on the physical
+                interface. Needed for on-link IPv6 prefixes such as AWS
+                EC2, where the instance owns a single /128 of the subnet.
         """
         self.host = host
         self.port = port
@@ -71,6 +75,7 @@ class Server:
         self.masquerade = masquerade
         self.interface = interface
         self.ip_cnt = 2
+        self.proxy_ndp = proxy_ndp
         self.ipv6_net = ipaddress.IPv6Network(ipv6_prefix, strict=False)
 
         self.running = True
@@ -120,6 +125,8 @@ class Server:
             remote: The connection to tear down.
         """
         if remote.tun is not None:
+            if self.proxy_ndp and remote.client_v6 is not None:
+                remote.tun.teardown_proxy_ndp(str(ipaddress.IPv6Address(remote.client_v6)))
             asyncio.get_running_loop().remove_reader(remote.tun.fileno())
             remote.tun.teardown_nat()
             remote.tun.close()
@@ -165,6 +172,11 @@ class Server:
             server_v6 = link_base + 1
             client_v6 = link_base + 2
             remote.tun.set_addr(f"{ipaddress.IPv6Address(server_v6)}/126")
+            if self.proxy_ndp and self.ipv6_net.is_global:
+                # On-link prefixes (AWS EC2): answer NDP for the client's
+                # global address on the physical interface.
+                remote.tun.setup_proxy_ndp(self.interface, str(ipaddress.IPv6Address(client_v6)))
+            remote.client_v6 = client_v6
 
             return [
                 AuthenticationResponse(True),

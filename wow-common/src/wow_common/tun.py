@@ -328,6 +328,40 @@ class Tun:
         for cmd in ip6_cmds:
             subprocess.run(cmd, check=False)
 
+    def setup_proxy_ndp(self, out_iface: str, addr: str) -> None:
+        """Answer NDP on ``out_iface`` for an address not assigned to any interface.
+
+        Needed for on-link IPv6 prefixes (e.g. AWS EC2): the instance owns
+        a single /128 from the subnet's /64, so the kernel must proxy-NDP
+        for the client addresses it forwards.
+
+        Args:
+            out_iface: Physical egress interface, e.g. ``"ens5"``.
+            addr: The client's global address to proxy for.
+        """
+        self._proxy_ndp_iface = out_iface
+        subprocess.run(
+            ["sysctl", "-w", f"net.ipv6.conf.{out_iface}.proxy_ndp=1"],
+            check=False,
+        )
+        subprocess.run(
+            ["ip", "-6", "neigh", "add", "proxy", addr, "dev", out_iface],
+            check=True,
+        )
+
+    def teardown_proxy_ndp(self, addr: str) -> None:
+        """Remove the proxy NDP entry created by :meth:`setup_proxy_ndp`, if any.
+
+        Args:
+            addr: The client's global address to stop proxying for.
+        """
+        if not hasattr(self, "_proxy_ndp_iface"):
+            return
+        subprocess.run(
+            ["ip", "-6", "neigh", "del", "proxy", addr, "dev", self._proxy_ndp_iface],
+            check=False,
+        )
+
     def __enter__(self) -> "Tun":
         """Enter the context manager, returning this TUN device."""
         return self

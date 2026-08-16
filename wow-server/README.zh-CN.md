@@ -23,7 +23,7 @@ wow-server --host 0.0.0.0 --port 9999 \
 
 所有选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
 `WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
-`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`）。
+`WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`）。
 
 - `--masquerade`：静默丢弃错误认证请求，不再回复
 - `--script-auth --auth-script auth.py`：使用导出

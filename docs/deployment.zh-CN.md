@@ -166,13 +166,11 @@ WOW_IPV6_PREFIX=2001:db8:1:2::/64
 
 - **路由前缀**（大多数 VPS 的"附加 IPv6"段）：无需额外配置——服务端
   直接把前缀从物理网卡转发出去。
-- **链路前缀**（如 AWS EC2）：内核需要为客户端地址应答 NDP。在出网
-  网卡上开启 proxy NDP，并为每个客户端地址固定邻居条目：
-
-  ```console
-  sysctl -w net.ipv6.conf.eth0.proxy_ndp=1
-  ip -6 neigh add proxy <客户端地址> dev eth0
-  ```
+- **链路前缀**（如 AWS EC2）：内核需要为客户端地址应答 NDP。开启
+  `--ipv6-proxy-ndp`（或 `WOW_IPV6_PROXY_NDP=1`），服务端会自动为每个
+  客户端添加 proxy NDP 条目。另外必须在 AWS 控制台**关闭实例网卡的
+  源/目标检查**（EC2 控制台 → 网络接口 → 更改源/目标检查 → 禁用），
+  否则虚拟化层会丢弃转发的客户端流量。
 
 然后从另一台主机 ping 客户端地址验证。
 

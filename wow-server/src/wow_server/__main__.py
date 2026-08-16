@@ -42,6 +42,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ipv6-prefix", default=os.environ.get("WOW_IPV6_PREFIX", "fd08::/64"),
                         help="IPv6 tunnel network, e.g. a provider-routed public /64 "
                              "(default: fd08::/64, env WOW_IPV6_PREFIX)")
+    parser.add_argument("--ipv6-proxy-ndp", action="store_true",
+                        default=bool(int(os.environ.get("WOW_IPV6_PROXY_NDP", "0"))),
+                        help="proxy-NDP for client IPv6 addresses on the egress interface "
+                             "(needed for on-link prefixes like AWS EC2, env WOW_IPV6_PROXY_NDP)")
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
 
     args = parser.parse_args()
@@ -91,7 +95,7 @@ def main() -> None:
     
     server = Server(args.host, args.port, auth_handler, args.iface,
                     args.cert, args.key, masquerade=args.masquerade,
-                    ipv6_prefix=args.ipv6_prefix)
+                    ipv6_prefix=args.ipv6_prefix, proxy_ndp=args.ipv6_proxy_ndp)
     try:
         asyncio.run(server.serve())
     except KeyboardInterrupt:

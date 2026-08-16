@@ -24,7 +24,8 @@ wow-server --host 0.0.0.0 --port 9999 \
 
 Every option can also be set through a `WOW_*` environment variable
 (`WOW_HOST`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`, `WOW_CERT`, `WOW_KEY`,
-`WOW_IPV6_PREFIX`, `WOW_SCRIPT_AUTH`, `WOW_AUTH_SCRIPT`).
+`WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`, `WOW_SCRIPT_AUTH`,
+`WOW_AUTH_SCRIPT`).
 
 - `--masquerade`: silently drop bad auth attempts instead of replying
 - `--script-auth --auth-script auth.py`: use a Python file exporting
