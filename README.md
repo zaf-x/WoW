@@ -37,7 +37,7 @@ See [docs/protocol.md](docs/protocol.md) for the wire protocol specification.
 Requires Linux, root, `/dev/net/tun` and a TLS certificate.
 
 ```console
-git clone <this-repo> && cd <this-repo>
+git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-server
 
@@ -58,7 +58,7 @@ Every option can also be set through a `WOW_*` environment variable
 Requires Linux and root (TUN device + raw ICMP socket for the latency probe).
 
 ```console
-git clone <this-repo> && cd <this-repo>
+git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-client
 

@@ -37,7 +37,7 @@
 需要 Linux、root、`/dev/net/tun` 和 TLS 证书。
 
 ```console
-git clone <本仓库> && cd <本仓库>
+git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-server
 
@@ -58,7 +58,7 @@ wow-server --host 0.0.0.0 --port 9999 \
 需要 Linux 和 root（TUN 设备 + 延迟探测用的原始 ICMP socket）。
 
 ```console
-git clone <本仓库> && cd <本仓库>
+git clone https://github.com/zaf-x/WoW.git && cd WoW
 python3 -m venv .venv && . .venv/bin/activate
 pip install ./wow-common ./wow-client
 
