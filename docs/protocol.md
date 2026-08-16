@@ -1,5 +1,7 @@
 # WoW - Wire over Wire
 
+[English](protocol.md) | [中文](protocol.zh-CN.md)
+
 WoW is a VPN working on L2, data transfer via TCP
 Works like this:
 

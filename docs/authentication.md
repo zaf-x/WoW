@@ -1,5 +1,7 @@
 # Authentication
 
+[English](authentication.md) | [中文](authentication.zh-CN.md)
+
 WoW uses a shared-secret handshake: the client sends a 128-bit
 authentication token inside the TLS session, and the server decides to
 accept or reject it. Two modes are available:
