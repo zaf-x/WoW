@@ -2,9 +2,11 @@
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import os
 import importlib.util
+from collections.abc import Generator
 from typing import Callable
 import uuid
 
@@ -12,6 +14,21 @@ import uvicorn
 
 from .server import Server
 from .api import API
+
+
+class _EmbeddedServer(uvicorn.Server):
+    """uvicorn server that never installs its own signal handlers.
+
+    uvicorn >= 0.30 removed the ``install_signal_handlers`` constructor flag:
+    ``serve()`` now unconditionally replaces the SIGINT/SIGTERM handlers on the
+    main thread via ``capture_signals()``. When embedded on the VPN server's own
+    loop that would swallow Ctrl+C (and systemd's SIGTERM), so override it with a
+    no-op; graceful shutdown still works because ``main()`` sets ``should_exit``.
+    """
+
+    @contextlib.contextmanager
+    def capture_signals(self) -> Generator[None, None, None]:
+        yield
 
 
 def parse_args() -> argparse.Namespace:
@@ -144,10 +161,7 @@ def main() -> None:
             config = uvicorn.Config(
                 api.app, host=args.api_host, port=args.api_port, log_level="warning"
             )
-            uvicorn_server = uvicorn.Server(config)
-            # Keep Ctrl+C handling in this process; uvicorn must not install
-            # its own signal handlers when embedded on an existing loop.
-            uvicorn_server.install_signal_handlers = lambda: None
+            uvicorn_server = _EmbeddedServer(config)
             api_task = asyncio.create_task(uvicorn_server.serve())
 
         try:
