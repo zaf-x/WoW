@@ -51,19 +51,19 @@ class API:
             return {"ok": True, "running": self.server.running}
 
         @self.app.get("/clients", dependencies=deps)
-        async def clients() -> list[dict]:
+        async def clients() -> list[dict[str, Any]]:
             """List the currently connected clients."""
             return [self._client_info(remote) for remote in self.server.remotes]
 
         @self.app.post("/clients/{remote_id}/kick", dependencies=deps)
-        async def kick(remote_id: int) -> dict:
+        async def kick(remote_id: int) -> dict[str, Any]:
             """Disconnect the client carrying ``remote_id``."""
             if not self.server.kick(remote_id):
                 raise HTTPException(status_code=404, detail="client not found")
             return {"ok": True}
 
         @self.app.get("/stats", dependencies=deps)
-        async def stats() -> dict:
+        async def stats() -> dict[str, Any]:
             """Return server-wide counters and configuration."""
             return {
                 "clients": len(self.server.remotes),
@@ -85,7 +85,7 @@ class API:
             raise HTTPException(status_code=401, detail="invalid or missing token")
 
     @staticmethod
-    def _client_info(remote: Remote) -> dict:
+    def _client_info(remote: Remote) -> dict[str, Any]:
         """Serialize one client connection for the API response."""
         peer = None
         try:
