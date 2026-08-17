@@ -222,8 +222,14 @@ class Server:
             self.addr_map.pop((6, remote.client_v6), None)
             if self.proxy_ndp and self.tun is not None:
                 self.tun.teardown_proxy_ndp(str(ipaddress.IPv6Address(remote.client_v6)))
-        remote.writer.close()
-        await remote.writer.wait_closed()
+        # Closing can race with the peer's TLS shutdown (e.g. application
+        # data after close_notify) or a hard reset; the connection is being
+        # torn down anyway, so close errors are not worth propagating.
+        try:
+            remote.writer.close()
+            await remote.writer.wait_closed()
+        except OSError:
+            pass
 
     async def manage_packet(self, remote: Remote, packet: PacketType) -> list[PacketType]:
         """Handle one decoded packet from a client.
