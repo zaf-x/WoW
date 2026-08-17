@@ -31,7 +31,7 @@ jobs:
           )
           for pkt in (
               Authentication(0x00112233445566778899aabbccddeeff),
-              AuthenticationResponse(True),
+              AuthenticationResponse(True, 0x00112233445566778899aabbccddeeff),
               IPv4Assign(0x0A080002, 24),
               IPv6Assign((0xFD08 << 112) | 2, 64),
               ApplicationData(b"\x45\x00\x00\x14" + b"\x00" * 16),
