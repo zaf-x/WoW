@@ -2,6 +2,7 @@
 
 import asyncio
 from collections import deque
+import json
 import ssl
 import subprocess
 from wow_common.protocol import ApplicationData, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, Ping, Pong, unpack  # type: ignore
@@ -27,31 +28,38 @@ RATE_WINDOW_SECONDS = 5.0
 RATE_SAMPLE_INTERVAL = 0.25
 
 def _discover_lan_networks(exclude_interfaces: set[str]) -> list[str]:
-    """Return directly-connected IPv4 networks (``"192.168.1.0/24"``) on physical interfaces.
+    """Return directly-connected IPv4/IPv6 networks (``"192.168.1.0/24"``) on physical interfaces.
 
     Packets destined to these networks must bypass the tunnel (see
     :meth:`Tun.setup_routing`): replies from local services - e.g. a proxy
     answering LAN clients - would otherwise be captured by the TUN route
     and dropped, breaking those clients.
 
+    Parses ``ip -j addr show`` (JSON) rather than the ``-o`` text format,
+    so the address fields arrive pre-structured. Link-local IPv6
+    (``fe80::/10``) is excluded: the kernel keeps link-scope routes on the
+    physical interface and never sends that traffic through the TUN.
+
     Args:
         exclude_interfaces: Interface names to skip (e.g. the tunnel device).
     """
     networks: list[str] = []
     try:
-        output = subprocess.check_output(["ip", "-o", "addr", "show"]).decode()
-    except (subprocess.CalledProcessError, OSError):
+        raw = subprocess.check_output(["ip", "-j", "addr", "show"]).decode()
+        addrs = json.loads(raw)
+    except (subprocess.CalledProcessError, OSError, json.JSONDecodeError):
         return networks
-    for line in output.splitlines():
-        parts = line.split()
-        if len(parts) < 4:
-            continue
-        ifname, family, addr = parts[1], parts[2], parts[3]
+    for iface in addrs:
+        ifname = iface.get("ifname")
         if ifname == "lo" or ifname in exclude_interfaces:
             continue
-        if family != "inet" or "/" not in addr:
-            continue
-        networks.append(addr)
+        for info in iface.get("addr_info", []):
+            if info.get("family") not in ("inet", "inet6"):
+                continue
+            addr = f"{info['local']}/{info['prefixlen']}"
+            if ipaddress.ip_network(addr, strict=False).is_link_local:
+                continue
+            networks.append(addr)
     return networks
 
 def human_size(size: float) -> str:
