@@ -8,9 +8,10 @@ running server.
 """
 
 import ipaddress
+from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.params import Depends as DependsParam
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .server import Remote, Server
@@ -40,12 +41,12 @@ class API:
         self.app = FastAPI(title="wow-server API", version=__version__)
 
         # Routes that require the token (when configured) share one dependency.
-        deps: list[Depends] = []
+        deps: list[DependsParam] = []
         if token:
             deps = [Depends(self._require_auth)]
 
         @self.app.get("/health")
-        async def health() -> dict:
+        async def health() -> dict[str, Any]:
             """Return whether the VPN server is still running."""
             return {"ok": True, "running": self.server.running}
 
@@ -58,9 +59,7 @@ class API:
         async def kick(remote_id: int) -> dict:
             """Disconnect the client carrying ``remote_id``."""
             if not self.server.kick(remote_id):
-                return JSONResponse(
-                    status_code=404, content={"ok": False, "reason": "not found"}
-                )
+                raise HTTPException(status_code=404, detail="client not found")
             return {"ok": True}
 
         @self.app.get("/stats", dependencies=deps)
