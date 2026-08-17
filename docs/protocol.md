@@ -31,15 +31,17 @@ Client Application -> TUN -----TCP + TLS-----> Server -> TUN -> Physical interfa
 ### Type 1 Authentication Response
 
 ```
-0         1
-+---------+
-| Success |
-+---------+
+0         1                   17
++---------+-------------------+
+| Success | ID (16 bytes)     |
++---------+-------------------+
 ```
 
-`Success` is 1 when the token is accepted, 0 otherwise. On success the
-server immediately follows with a Type 5 IPv4 Assign and a Type 6 IPv6
-Assign packet carrying the tunnel addresses.
+`Success` is 1 when the token is accepted, 0 otherwise. `ID` is a
+128-bit per-connection id chosen by the server's auth handler (used by
+the management API to address the connection). On success the server
+immediately follows with a Type 5 IPv4 Assign and a Type 6 IPv6 Assign
+packet carrying the tunnel addresses.
 
 ### Type 2 Application Data
 

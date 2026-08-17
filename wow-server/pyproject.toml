@@ -26,7 +26,9 @@ classifiers = [
 ]
 dependencies = [
   "wow-common",
-  "rich"
+  "rich",
+  "fastapi",
+  "uvicorn"
 ]
 
 [project.scripts]

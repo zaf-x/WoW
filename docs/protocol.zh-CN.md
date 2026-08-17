@@ -29,14 +29,16 @@ WoW 是一个 L3（IP 层）VPN，基于 TLS 加密的 TCP 连接传输，工作
 ### Type 1 认证响应（Authentication Response）
 
 ```
-0         1
-+---------+
-| Success |
-+---------+
+0         1                   17
++---------+-------------------+
+| Success | ID (16 bytes)     |
++---------+-------------------+
 ```
 
-`Success` 为 1 表示 token 被接受，为 0 表示被拒绝。认证成功后服务端
-紧接着发送 Type 5 IPv4 分配和 Type 6 IPv6 分配两个报文，携带隧道地址。
+`Success` 为 1 表示 token 被接受，为 0 表示被拒绝。`ID` 是服务端
+认证处理器选定的 128-bit 连接级 id（管理 API 用它定位连接）。认证
+成功后服务端紧接着发送 Type 5 IPv4 分配和 Type 6 IPv6 分配两个报文，
+携带隧道地址。
 
 ### Type 2 应用数据（Application Data）
 

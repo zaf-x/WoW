@@ -14,12 +14,14 @@ WoW 使用共享密钥握手：客户端在 TLS 会话内发送 128-bit 认证 t
 
 1. 客户端通过 TLS 连接，发送 `Authentication` 报文（协议类型 0），
    携带 128-bit token 的整数形式。
-2. 服务端用该整数调用认证处理器：`auth_handler(token) -> bool`。
-3. `True` — 服务端分配 IPv4（`10.8.0.0/24`）与 IPv6（`fd08::/64`）
+2. 服务端用该整数调用认证处理器：`auth_handler(token) -> tuple[bool, int]`。
+   元组携带认证结论与连接 id：`(True, id)` 接受客户端并将其注册到
+   `id` 下（管理 API 用这个 id 定位连接）；`(False, _)` 拒绝。
+3. 成功时 — 服务端分配 IPv4（`10.8.0.0/24`）与 IPv6（`fd08::/64`）
    隧道地址，把客户端注册到共享的网关 TUN 上，并回复
-   `AuthenticationResponse(True)`，随后发送 `IPv4Assign` 和
+   `AuthenticationResponse(True, id)`，随后发送 `IPv4Assign` 和
    `IPv6Assign`。
-4. `False` — 服务端回复 `AuthenticationResponse(False)`；或在
+4. 失败时 — 服务端回复 `AuthenticationResponse(False, 0)`；或在
    [伪装模式](#伪装模式) 下假装成功并静默丢弃所有数据。
 
 ## 编写认证脚本
@@ -29,40 +31,47 @@ WoW 使用共享密钥握手：客户端在 TLS 会话内发送 128-bit 认证 t
 必须导出一个可调用对象：
 
 ```python
-def auth_handler(token: int) -> bool:
+def auth_handler(token: int) -> tuple[bool, int]:
     ...
 ```
 
 ### 示例：静态 token 等价实现
 
 ```python
+import uuid
+
 TOKEN = 0x00112233445566778899aabbccddeeff
 
-def auth_handler(token: int) -> bool:
-    return token == TOKEN
+def auth_handler(token: int) -> tuple[bool, int]:
+    return token == TOKEN, uuid.uuid4().int
 ```
 
 ### 示例：带日志的允许列表
 
 ```python
+import uuid
+
 ALLOWED = {
     0x00112233445566778899aabbccddeeff: "laptop",
     0xffeeddccbbaa99887766554433221100: "phone",
 }
 
-def auth_handler(token: int) -> bool:
+def auth_handler(token: int) -> tuple[bool, int]:
     name = ALLOWED.get(token)
     if name is not None:
         print(f"auth: {name} connected")
-        return True
+        return True, uuid.uuid4().int
     print(f"auth: rejected token {token:032x}")
-    return False
+    return False, 0
 ```
 
 ## 注意事项
 
 - 处理器对每个 `Authentication` 报文**在服务端事件循环上同步调用**。
   保持快速：不要阻塞、不要 `sleep`。查询表请在模块加载时预计算。
+- 处理器返回的 **id** 是连接级标识（例如 `uuid.uuid4().int`），会随
+  认证响应回传给客户端，管理 API（`GET /clients`、
+  `POST /clients/{id}/kick`）用它定位连接。
 - 脚本**只在启动时导入一次**，模块级状态（token 集合、计数器）会
   跨连接保留。
 - 脚本缺失、或脚本没有 `auth_handler` 属性时，服务端直接退出并报错。

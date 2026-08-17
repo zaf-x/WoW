@@ -85,13 +85,15 @@ Most options can also be set through a `WOW_*` environment variable
 (`WOW_HOST`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`, `WOW_CERT`, `WOW_KEY`,
 `WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`, `WOW_SCRIPT_AUTH`,
 `WOW_AUTH_SCRIPT`, `WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`,
-`WOW_IPV6_ROTATE_INTERVAL`);
+`WOW_IPV6_ROTATE_INTERVAL`, `WOW_API_HOST`, `WOW_API_PORT`,
+`WOW_API_TOKEN`);
 `--masquerade` and `--verbose` are CLI-only.
 
 - `--masquerade`: reply to bad auth attempts with a fake success, then
   silently drop their traffic
 - `--script-auth --auth-script auth.py`: plug in a Python file exporting
-  `auth_handler(token: int) -> bool` for custom authentication
+  `auth_handler(token: int) -> tuple[bool, int]` for custom
+  authentication (verdict, per-connection id)
 - `--idle-script idle.py --idle-timer 600`: run `idle_callback()` from a
   Python file once the server has had no clients for the given number of
   seconds — e.g. auto-shutdown of an unused instance
@@ -99,6 +101,11 @@ Most options can also be set through a `WOW_*` environment variable
   address from the tunnel prefix on this interval (privacy rotation;
   default 1 hour, 0 disables). The address swap drops existing
   connections, like renewing a public IP.
+- `--api-host 127.0.0.1 --api-port 8000 --api-token <secret>`: management
+  API (FastAPI) served on the same event loop: `GET /health`,
+  `GET /clients`, `POST /clients/{id}/kick`, `GET /stats`. Port 0
+  disables it; keep it on loopback and/or set a bearer token, since it
+  can kick connected clients.
 
 For a full production setup (systemd, TLS, hardening), see
 [docs/deployment.md](docs/deployment.md).

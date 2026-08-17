@@ -65,7 +65,7 @@ class Authentication(PacketType):
             17,  # payload_len = 1 (type) + 16 (token)
             PT_AUTH,
             self.token >> 64,
-            self.token & 0xFFFFFFFFFFFFFFFF,
+            self.token & 18446744073709551615, # 64 bits of `1` (0b111....11111)
         )
 
     @classmethod
@@ -100,6 +100,7 @@ class AuthenticationResponse(PacketType):
     """
 
     success: bool
+    id: int
 
     def pack(self) -> bytes:
         """Serialize the packet to its wire representation.
@@ -108,10 +109,12 @@ class AuthenticationResponse(PacketType):
             The encoded packet bytes (header plus payload).
         """
         return struct.pack(
-            "!IBB",
-            2,  # payload_len = 1 (type) + 1 (success)
+            "!IBB2Q",
+            18,  # payload_len = 1 (type) + 1 (success) + 16 (id)
             PT_AUTH_RESP,
             1 if self.success else 0,
+            self.id >> 64,
+            self.id & 18446744073709551615 # 64 bits of `1` (0b111....11111)
         )
 
     @classmethod
@@ -128,9 +131,9 @@ class AuthenticationResponse(PacketType):
             ValueError: If the data is too short, has the wrong packet
                 type, or carries an unexpected payload length.
         """
-        verify(data, 2, PT_AUTH_RESP)
-        _, _, success = struct.unpack("!IBB", data)
-        return cls(success == 1)
+        verify(data, 18, PT_AUTH_RESP)
+        _, _, success, id_high, id_low = struct.unpack("!IBB2Q", data)
+        return cls(success == 1, (id_high << 64) | id_low)
 
 @dataclass
 class IPv4Assign(PacketType):

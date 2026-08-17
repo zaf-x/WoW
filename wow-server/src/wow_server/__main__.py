@@ -6,8 +6,12 @@ import logging
 import os
 import importlib.util
 from typing import Callable
+import uuid
+
+import uvicorn
 
 from .server import Server
+from .api import API
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +60,13 @@ def parse_args() -> argparse.Namespace:
                         default=int(os.environ.get("WOW_IPV6_ROTATE_INTERVAL", "3600")),
                         help="seconds between reassigning each client a new random IPv6 "
                              "address (privacy rotation; 0 disables, default: 3600, env WOW_IPV6_ROTATE_INTERVAL)")
+    parser.add_argument("--api-host", default=os.environ.get("WOW_API_HOST", "127.0.0.1"),
+                        help="management API bind address (default: 127.0.0.1, env WOW_API_HOST)")
+    parser.add_argument("--api-port", type=int, default=int(os.environ.get("WOW_API_PORT", "8000")),
+                        help="management API port, 0 disables (default: 8000, env WOW_API_PORT)")
+    parser.add_argument("--api-token", default=os.environ.get("WOW_API_TOKEN", ""),
+                        help="bearer token for the management API; empty means no auth "
+                             "(default: none, env WOW_API_TOKEN)")
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
 
     args = parser.parse_args()
@@ -74,7 +85,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """Run the server until interrupted."""
     args = parse_args()
-    auth_handler: Callable[[int], bool] | None = None
+    auth_handler: Callable[[int], tuple[bool, int]] | None = None
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s:%(name)s:%(message)s",
@@ -98,10 +109,10 @@ def main() -> None:
             print("E: invalid script: must provide `auth_handler` function")
             exit(1)
     else:
-        auth_handler = (lambda x: args.token == x)
+        auth_handler = (lambda x: (args.token == x, uuid.uuid4().int))
 
     if not auth_handler:
-        auth_handler = lambda x: False # Satisfy PyLance
+        auth_handler = lambda x: (False, 0) # Satisfy PyLance
 
     idle_callback: Callable[[], None] | None = None
     if args.idle_script:
@@ -123,8 +134,32 @@ def main() -> None:
                     ipv6_prefix=args.ipv6_prefix, proxy_ndp=args.ipv6_proxy_ndp,
                     idle_callback=idle_callback, idle_timer=args.idle_timer,
                     ipv6_rotate_interval=args.ipv6_rotate_interval)
+
+    async def run() -> None:
+        """Run the VPN server and, when enabled, the management API on the same loop."""
+        api_task = None
+        uvicorn_server = None
+        if args.api_port:
+            api = API(server, token=args.api_token)
+            config = uvicorn.Config(
+                api.app, host=args.api_host, port=args.api_port, log_level="warning"
+            )
+            uvicorn_server = uvicorn.Server(config)
+            # Keep Ctrl+C handling in this process; uvicorn must not install
+            # its own signal handlers when embedded on an existing loop.
+            uvicorn_server.install_signal_handlers = lambda: None
+            api_task = asyncio.create_task(uvicorn_server.serve())
+
+        try:
+            await server.serve()
+        finally:
+            if uvicorn_server is not None:
+                uvicorn_server.should_exit = True
+            if api_task is not None:
+                await asyncio.gather(api_task, return_exceptions=True)
+
     try:
-        asyncio.run(server.serve())
+        asyncio.run(run())
     except KeyboardInterrupt:
         pass
 

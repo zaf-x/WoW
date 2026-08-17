@@ -8,7 +8,6 @@ import ssl
 from typing import Callable
 from wow_common.protocol import Raw, unpack, PacketType, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, ApplicationData, Ping, Pong  # type: ignore
 from wow_common.tun import Tun # type: ignore
-import uuid
 import rich
 
 @dataclass
@@ -16,7 +15,8 @@ class Remote:
     """Per-connection state for a connected client.
 
     Attributes:
-        stream_id: Random hex identifier for the connection.
+        remote_id: Stable id for the connection, assigned by
+            ``auth_handler`` at authentication (0 until then).
         authorized: Whether the client has successfully authenticated.
         susp: Whether this remote is marked as suspicious (masquerade).
         reader: Stream reader for the TLS connection.
@@ -25,10 +25,9 @@ class Remote:
         client_v6: Assigned tunnel IPv6 address as an integer, if any.
     """
 
-    stream_id: str
+    remote_id: int
     authorized: bool
     susp: bool
-
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
     client_v4: int | None = None
@@ -56,7 +55,7 @@ class Server:
         addr_map: Maps ``(family, address)`` to the client owning that address.
     """
 
-    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False, idle_callback: Callable[[], None] | None = None, idle_timer: int = 600, ipv6_rotate_interval: int = 3600):
+    def __init__(self, host: str, port: int, auth_handler: Callable[[int], tuple[bool, int]], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False, idle_callback: Callable[[], None] | None = None, idle_timer: int = 600, ipv6_rotate_interval: int = 3600):
         """Initialize the server.
 
         Args:
@@ -129,7 +128,7 @@ class Server:
                     self.tun.setup_proxy_ndp(self.interface, str(ipaddress.IPv6Address(new_v6)))
                 remote.writer.write(IPv6Assign(new_v6, self.ipv6_net.prefixlen).pack())
                 await remote.writer.drain()
-                rich.print(f"[yellow]Renewed {remote.stream_id} IPv6 -> {ipaddress.IPv6Address(new_v6)}[/yellow]")
+                rich.print(f"[yellow]Renewed {remote.remote_id} IPv6 -> {ipaddress.IPv6Address(new_v6)}[/yellow]")
 
     def _random_v6(self) -> int:
         """Pick a random unused address from the tunnel prefix.
@@ -172,7 +171,7 @@ class Server:
             if self.running and not self.remotes:
                 self.idle_callback()
 
-    async def handle_stream(
+    async def handle_remote(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         """Serve one client connection: read, dispatch and reply to packets until disconnect.
@@ -183,7 +182,7 @@ class Server:
         """
         peer_addr = writer.get_extra_info("peername")
         rich.print(f"[green]New connection from {peer_addr}[/green]")
-        remote = Remote(uuid.uuid4().hex, False, False, reader, writer)
+        remote = Remote(0, False, False, reader, writer)
         self.remotes.append(remote)
 
         try:
@@ -239,12 +238,14 @@ class Server:
         if remote.susp and self.masquerade:
             return []
         if isinstance(packet, Authentication):
-            if not self.auth_handler(packet.token):
+            success, remote_id = self.auth_handler(packet.token)
+            if not success:
                 if not self.masquerade:
-                    return [AuthenticationResponse(False)]
+                    return [AuthenticationResponse(False, 0)]
                 remote.susp = True
                 print(f"Susp remote: {remote}")
             remote.authorized = True
+            remote.remote_id = remote_id
             self.ip_cnt += 1
             # Flat tunnel networks behind the gateway TUN: IPv4 10.8.0.0/24
             # (server 10.8.0.1, clients 10.8.0.N); IPv6 prefix configurable
@@ -261,7 +262,7 @@ class Server:
             remote.client_v6 = client_v6
 
             return [
-                AuthenticationResponse(True),
+                AuthenticationResponse(True, remote.remote_id),
                 IPv4Assign(client_ip, 24),
                 IPv6Assign(client_v6, self.ipv6_net.prefixlen),
             ]
@@ -297,7 +298,7 @@ class Server:
         ssl_ctx.load_cert_chain(self.cert, self.key)
 
         server = await asyncio.start_server(
-            self.handle_stream,
+            self.handle_remote,
             self.host,
             self.port,
             ssl=ssl_ctx,
@@ -306,6 +307,21 @@ class Server:
 
         async with server:
             await server.serve_forever()
+
+    def kick(self, remote_id: int) -> bool:
+        """Close the connection of the client carrying ``remote_id``.
+
+        Args:
+            remote_id: The client id returned by ``auth_handler``.
+
+        Returns:
+            True if a matching client was found and kicked.
+        """
+        for remote in self.remotes:
+            if remote.remote_id == remote_id:
+                remote.writer.close()
+                return True
+        return False
 
     async def stop(self):
         """Stop the server, tear down all connected clients and the gateway TUN."""
