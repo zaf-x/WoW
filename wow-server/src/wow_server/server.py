@@ -136,8 +136,13 @@ class Server:
 
         Excludes the network address, the server's own address
         (``network + 1``) and any address currently assigned to a client.
+
+        Raises:
+            ValueError: If the prefix has no host bits to draw from.
         """
         network = int(self.ipv6_net.network_address)
+        if self.ipv6_net.prefixlen >= 128:
+            raise ValueError("tunnel prefix has no host bits for client addresses")
         while True:
             candidate = network | random.getrandbits(128 - self.ipv6_net.prefixlen)
             if candidate == network or candidate == network + 1:
@@ -245,7 +250,7 @@ class Server:
             # (server 10.8.0.1, clients 10.8.0.N); IPv6 prefix configurable
             # (default ULA fd08::/64, or a public prefix for global addresses).
             client_ip = 0xA080000 | self.ip_cnt
-            client_v6 = int(self.ipv6_net.network_address) | self.ip_cnt
+            client_v6 = self._random_v6()
             self.addr_map[(4, client_ip)] = remote
             self.addr_map[(6, client_v6)] = remote
             if self.proxy_ndp and self.ipv6_net.is_global and self.tun is not None:
