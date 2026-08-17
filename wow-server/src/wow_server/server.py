@@ -98,11 +98,14 @@ class Server:
         self.idle_timer = idle_timer
 
     async def idle_scan(self) -> None:
-        """Invoke ``idle_callback`` once the server has had no clients for ``idle_timer`` seconds.
+        """Invoke ``idle_callback`` whenever the server has had no clients for ``idle_timer`` seconds.
 
         Polls cheaply (1s while clients are connected) and sleeps the full
         idle window only while the server is empty, so the callback fires
-        only after a continuous idle period. The callback must return
+        only after a continuous idle period. After the callback returns
+        the scan re-arms, so a callback that declines to act (e.g. a
+        repair-mode guard that skips the shutdown) lets the check run
+        again after the next idle window. The callback must return
         quickly — it runs on the event loop (blocking work should spawn
         its own thread/task).
         """
@@ -115,7 +118,6 @@ class Server:
             await asyncio.sleep(self.idle_timer)
             if self.running and not self.remotes:
                 self.idle_callback()
-                return
 
     async def handle_stream(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
