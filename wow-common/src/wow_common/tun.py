@@ -93,6 +93,20 @@ class Tun:
         """
         subprocess.run(["ip", "addr", "add", addr, "dev", self.name], check=True)
 
+    def replace_addr(self, old: str, new: str) -> None:
+        """Replace the address ``old`` with ``new`` (CIDR) on the interface.
+
+        Used when the server rotates the tunnel address: ``ip addr
+        replace`` updates the address sharing the prefix, then the stale
+        address is removed best-effort (it may already be gone).
+
+        Args:
+            old: The address to remove, e.g. ``'2001:db8::2'``.
+            new: The CIDR replacement, e.g. ``'2001:db8::3/64'``.
+        """
+        subprocess.run(["ip", "addr", "replace", new, "dev", self.name], check=True)
+        subprocess.run(["ip", "addr", "del", old, "dev", self.name], check=False)
+
     def add_route(self, cidr: str) -> None:
         """Add a route via this interface, e.g. ``'10.8.0.2/32'`` (used to steer reply packets into the TUN).
 

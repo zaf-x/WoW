@@ -52,6 +52,10 @@ def parse_args() -> argparse.Namespace:
                         default=bool(int(os.environ.get("WOW_IPV6_PROXY_NDP", "0"))),
                         help="proxy-NDP for client IPv6 addresses on the egress interface "
                              "(needed for on-link prefixes like AWS EC2, env WOW_IPV6_PROXY_NDP)")
+    parser.add_argument("--ipv6-rotate-interval", type=int,
+                        default=int(os.environ.get("WOW_IPV6_ROTATE_INTERVAL", "3600")),
+                        help="seconds between reassigning each client a new random IPv6 "
+                             "address (privacy rotation; 0 disables, default: 3600, env WOW_IPV6_ROTATE_INTERVAL)")
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
 
     args = parser.parse_args()
@@ -117,7 +121,8 @@ def main() -> None:
     server = Server(args.host, args.port, auth_handler, args.iface,
                     args.cert, args.key, masquerade=args.masquerade,
                     ipv6_prefix=args.ipv6_prefix, proxy_ndp=args.ipv6_proxy_ndp,
-                    idle_callback=idle_callback, idle_timer=args.idle_timer)
+                    idle_callback=idle_callback, idle_timer=args.idle_timer,
+                    ipv6_rotate_interval=args.ipv6_rotate_interval)
     try:
         asyncio.run(server.serve())
     except KeyboardInterrupt:

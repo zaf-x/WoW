@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import ipaddress
 import asyncio
+import random
 import ssl
 from typing import Callable
 from wow_common.protocol import Raw, unpack, PacketType, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, ApplicationData, Ping, Pong  # type: ignore
@@ -55,7 +56,7 @@ class Server:
         addr_map: Maps ``(family, address)`` to the client owning that address.
     """
 
-    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False, idle_callback: Callable[[], None] | None = None, idle_timer: int = 600):
+    def __init__(self, host: str, port: int, auth_handler: Callable[[int], bool], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False, idle_callback: Callable[[], None] | None = None, idle_timer: int = 600, ipv6_rotate_interval: int = 3600):
         """Initialize the server.
 
         Args:
@@ -77,6 +78,9 @@ class Server:
                 of an unused instance).
             idle_timer: Seconds without clients before ``idle_callback``
                 fires (default 600).
+            ipv6_rotate_interval: Seconds between reassigning each client
+                a fresh random IPv6 address from the tunnel prefix
+                (privacy rotation; default 3600, 0 disables).
         """
         self.host = host
         self.port = port
@@ -96,6 +100,50 @@ class Server:
 
         self.idle_callback = idle_callback
         self.idle_timer = idle_timer
+        self.ipv6_rotate_interval = ipv6_rotate_interval
+
+    async def ipv6_rotate_loop(self) -> None:
+        """Reassign every connected client a new random IPv6 address periodically.
+
+        Every ``ipv6_rotate_interval`` seconds each client gets a fresh
+        random address from the tunnel prefix and is told to swap it on
+        its TUN interface. The address is replaced, not added, so existing
+        connections through the tunnel drop at each rotation (the privacy
+        trade-off of a rotating public IP). Set the interval to 0 to
+        disable rotation entirely.
+        """
+        if not self.ipv6_rotate_interval or self.ipv6_net.prefixlen >= 128:
+            return
+        while self.running:
+            await asyncio.sleep(self.ipv6_rotate_interval)
+            for remote in list(self.remotes):
+                if remote.client_v6 is None or remote.writer.is_closing():
+                    continue
+                old_v6 = remote.client_v6
+                new_v6 = self._random_v6()
+                self.addr_map.pop((6, old_v6), None)
+                self.addr_map[(6, new_v6)] = remote
+                remote.client_v6 = new_v6
+                if self.proxy_ndp and self.ipv6_net.is_global and self.tun is not None:
+                    self.tun.teardown_proxy_ndp(str(ipaddress.IPv6Address(old_v6)))
+                    self.tun.setup_proxy_ndp(self.interface, str(ipaddress.IPv6Address(new_v6)))
+                remote.writer.write(IPv6Assign(new_v6, self.ipv6_net.prefixlen).pack())
+                await remote.writer.drain()
+                rich.print(f"[yellow]Renewed {remote.stream_id} IPv6 -> {ipaddress.IPv6Address(new_v6)}[/yellow]")
+
+    def _random_v6(self) -> int:
+        """Pick a random unused address from the tunnel prefix.
+
+        Excludes the network address, the server's own address
+        (``network + 1``) and any address currently assigned to a client.
+        """
+        network = int(self.ipv6_net.network_address)
+        while True:
+            candidate = network | random.getrandbits(128 - self.ipv6_net.prefixlen)
+            if candidate == network or candidate == network + 1:
+                continue
+            if (6, candidate) not in self.addr_map:
+                return candidate
 
     async def idle_scan(self) -> None:
         """Invoke ``idle_callback`` whenever the server has had no clients for ``idle_timer`` seconds.
@@ -217,6 +265,7 @@ class Server:
                 return []
 
             self.tun.write(packet.data)
+            return []
         if isinstance(packet, Ping):
             return [Pong()]
 
@@ -237,6 +286,7 @@ class Server:
         self.tun = tun
         asyncio.get_running_loop().add_reader(tun.fileno(), self.on_gateway_readable)
         asyncio.create_task(self.idle_scan())
+        asyncio.create_task(self.ipv6_rotate_loop())
 
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_ctx.load_cert_chain(self.cert, self.key)

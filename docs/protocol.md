@@ -78,3 +78,8 @@ length (`CIDR`, 1 byte) to configure on the client's TUN interface.
 
 The virtual IPv6 address (`IP Addr`, 16 bytes big-endian) and the prefix
 length (`CIDR`, 1 byte) to configure on the client's TUN interface.
+
+Sent during the handshake right after the Authentication Response, and
+again at any later point when the server rotates the client's address
+(IPv6 privacy rotation, `--ipv6-rotate-interval`): the client then
+replaces its TUN address with the new one.

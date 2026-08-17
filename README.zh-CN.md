@@ -82,8 +82,8 @@ wow-server --host 0.0.0.0 --port 9999 \
 大多数选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
 `WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
 `WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`、
-`WOW_IDLE_SCRIPT`、`WOW_IDLE_TIMER`）；`--masquerade` 与 `--verbose`
-仅支持命令行。
+`WOW_IDLE_SCRIPT`、`WOW_IDLE_TIMER`、`WOW_IPV6_ROTATE_INTERVAL`）；
+`--masquerade` 与 `--verbose` 仅支持命令行。
 
 - `--masquerade`：对错误认证回复假成功，随后静默丢弃其流量
 - `--script-auth --auth-script auth.py`：使用导出
@@ -91,6 +91,9 @@ wow-server --host 0.0.0.0 --port 9999 \
 - `--idle-script idle.py --idle-timer 600`：当服务端在指定秒数内没有
   任何客户端时，运行 Python 文件里的 `idle_callback()`——例如闲置实例
   自动关机
+- `--ipv6-rotate-interval 3600`：每隔指定秒数为每个客户端从隧道前缀
+  重新分配一个随机 IPv6 地址（隐私轮换；默认 1 小时，0 关闭）。地址
+  更换会断开现有连接，相当于换了一次公网 IP。
 
 完整的生产环境部署（systemd、TLS、安全加固）见
 [docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)。

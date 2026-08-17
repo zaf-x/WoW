@@ -26,7 +26,8 @@ wow-server --host 0.0.0.0 --port 9999 \
 Most options can also be set through a `WOW_*` environment variable
 (`WOW_HOST`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`, `WOW_CERT`, `WOW_KEY`,
 `WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`, `WOW_SCRIPT_AUTH`,
-`WOW_AUTH_SCRIPT`, `WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`);
+`WOW_AUTH_SCRIPT`, `WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`,
+`WOW_IPV6_ROTATE_INTERVAL`);
 `--masquerade` and `--verbose` are CLI-only.
 
 - `--masquerade`: reply to bad auth attempts with a fake success, then
@@ -36,6 +37,10 @@ Most options can also be set through a `WOW_*` environment variable
 - `--idle-script idle.py --idle-timer 600`: run `idle_callback()` from a
   Python file once the server has had no clients for the given number of
   seconds — e.g. auto-shutdown of an unused instance
+- `--ipv6-rotate-interval 3600`: reassign every client a new random IPv6
+  address from the tunnel prefix on this interval (privacy rotation;
+  default 1 hour, 0 disables). The address swap drops existing
+  connections, like renewing a public IP.
 
 ## Install
 

@@ -349,6 +349,15 @@ class Client:
                     if self.last_ping_at is not None:
                         self.server_delay = time.monotonic() - self.last_ping_at
                         self.update_panel("Running", "green")
+                elif isinstance(pkt, IPv6Assign):
+                    # Mid-stream IPv6Assign = the server rotated our tunnel
+                    # address (privacy renewal); swap it on the TUN device.
+                    old = str(self.ip6_addr)
+                    self.ip6_addr = ipaddress.IPv6Address(pkt.ip_addr)
+                    self.cidr6 = pkt.ip_cidr
+                    if self.tun:
+                        self.tun.replace_addr(old, f"{self.ip6_addr}/{self.cidr6}")
+                    self.update_panel("Running (IPv6 renewed)", "green")
                 await self.writer.drain()
 
             self.writer.close()
