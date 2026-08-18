@@ -66,9 +66,13 @@ class API:
             return [self._client_info(remote) for remote in self.server.remotes]
 
         @self.app.post("/clients/{remote_id}/kick", dependencies=deps)
-        async def kick(remote_id: int) -> dict[str, Any]:
-            """Disconnect the client carrying ``remote_id``."""
-            if not self.server.kick(remote_id):
+        async def kick(remote_id: str) -> dict[str, Any]:
+            """Disconnect the client carrying ``remote_id`` (hex string)."""
+            try:
+                rid = int(remote_id, 16)
+            except ValueError:
+                raise HTTPException(status_code=422, detail="invalid remote_id")
+            if not self.server.kick(rid):
                 raise HTTPException(status_code=404, detail="client not found")
             return {"ok": True}
 
@@ -104,7 +108,9 @@ class API:
         except Exception:
             peer = None
         return {
-            "remote_id": remote.remote_id,
+            # Sent as a hex string: remote ids are up to 128 bits, which
+            # exceeds the JSON-safe integer range (2^53) in JavaScript.
+            "remote_id": f"{remote.remote_id:x}",
             "authorized": remote.authorized,
             "susp": remote.susp,
             "ipv4": (
