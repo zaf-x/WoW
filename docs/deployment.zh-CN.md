@@ -209,8 +209,11 @@ IPv6，没有 NAT。
   替换而非新增，因此每次轮换都会断开现有连接。
 - **管理 API**：`WOW_API_HOST`（默认 `127.0.0.1`）/ `WOW_API_PORT`
   （默认 8000，0 关闭）/ `WOW_API_TOKEN`，提供 `GET /health`、
-  `GET /clients`、`POST /clients/{id}/kick` 和 `GET /stats`。API 可以
-  踢掉客户端，务必绑定回环地址并设置 token 再对外暴露。
+  `GET /clients`、`POST /clients/{id}/kick` 和 `GET /stats`。
+  `WOW_API_CORS`（默认 `*`）列出允许调用 API 的浏览器来源，独立的
+  [wow-mgmt-dashboard](https://github.com/zaf-x/wow-mgmt-dashboard)
+  面板可部署在任何地方。API 可以踢掉客户端，务必绑定回环地址并
+  设置 token 再对外暴露。
 
 ## 11. 安全加固
 

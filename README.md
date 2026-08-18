@@ -108,7 +108,10 @@ command-line flag > TOML > env > default. The env variables are
   API (FastAPI) served on the same event loop: `GET /health`,
   `GET /clients`, `POST /clients/{id}/kick`, `GET /stats`. Port 0
   disables it; keep it on loopback and/or set a bearer token, since it
-  can kick connected clients.
+  can kick connected clients. `--api-cors` (default `*`) lists the
+  browser origins allowed to call the API — the web dashboard in the
+  separate [wow-mgmt-dashboard](https://github.com/zaf-x/wow-mgmt-dashboard)
+  project uses this.
 
 For a full production setup (systemd, TLS, hardening), see
 [docs/deployment.md](docs/deployment.md).

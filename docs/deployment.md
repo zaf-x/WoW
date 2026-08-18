@@ -223,8 +223,11 @@ Then verify by pinging a client's address from another host.
 - **Management API**: `WOW_API_HOST` (default `127.0.0.1`) /
   `WOW_API_PORT` (default 8000, 0 disables) / `WOW_API_TOKEN` expose
   `GET /health`, `GET /clients`, `POST /clients/{id}/kick` and
-  `GET /stats`. It can kick clients, so bind it to loopback and set a
-  token before exposing it.
+  `GET /stats`. `WOW_API_CORS` (default `*`) lists the browser origins
+  allowed to call it, so a web dashboard (the separate
+  [wow-mgmt-dashboard](https://github.com/zaf-x/wow-mgmt-dashboard)
+  project) can be served from anywhere. It can kick clients, so bind it
+  to loopback and set a token before exposing it.
 
 ## 11. Hardening
 

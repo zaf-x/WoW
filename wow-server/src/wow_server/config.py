@@ -83,6 +83,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--api-token", default=None,
                         help="bearer token for the management API; empty means no auth "
                              "(env WOW_API_TOKEN)")
+    parser.add_argument("--api-cors", default=None,
+                        help="CORS allowed origins for the management API, comma-separated; "
+                             "* allows any (default: *, env WOW_API_CORS)")
     parser.add_argument("-v", "--verbose", action="store_true", default=None,
                         help="debug logging (env WOW_VERBOSE)")
     _args = parser.parse_args()
@@ -290,6 +293,7 @@ class Config:
             "host": _get("api_host", "host", "WOW_API_HOST", "127.0.0.1"),
             "port": _get("api_port", "port", "WOW_API_PORT", 8000, int),
             "token": _get("api_token", "token", "WOW_API_TOKEN", ""),
+            "cors": _get("api_cors", "cors", "WOW_API_CORS", "*"),
         }
 
     @property

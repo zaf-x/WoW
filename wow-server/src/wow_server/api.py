@@ -11,6 +11,7 @@ import ipaddress
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Depends as DependsParam
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -28,17 +29,26 @@ class API:
         app: The constructed FastAPI application (pass to uvicorn).
     """
 
-    def __init__(self, server: Server, token: str = "") -> None:
+    def __init__(self, server: Server, token: str = "", cors: str = "*") -> None:
         """Build the FastAPI application around ``server``.
 
         Args:
             server: The running VPN server to manage.
             token: Optional bearer token; empty means no authentication
                 (the API should then only be bound to loopback).
+            cors: Comma-separated list of allowed browser origins for the
+                management API; ``*`` allows any origin (the bearer token
+                stays the only credential).
         """
         self.server = server
         self.token = token
         self.app = FastAPI(title="wow-server API", version=__version__)
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[o.strip() for o in cors.split(",") if o.strip()],
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
         # Routes that require the token (when configured) share one dependency.
         deps: list[DependsParam] = []
@@ -73,6 +83,7 @@ class API:
                 "idle_timer": self.server.idle_timer,
                 "ipv6_rotate_interval": self.server.ipv6_rotate_interval,
                 "ipv6_prefix": str(self.server.ipv6_net),
+                "version": __version__,
             }
 
     async def _require_auth(

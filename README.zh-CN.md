@@ -105,6 +105,9 @@ wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
   事件循环上提供管理 API（FastAPI）：`GET /health`、`GET /clients`、
   `POST /clients/{id}/kick`、`GET /stats`。端口为 0 时关闭；建议只绑
   回环地址和/或设置 bearer token——该 API 能踢掉在线客户端。
+  `--api-cors`（默认 `*`）列出允许调用 API 的浏览器来源——独立的
+  [wow-mgmt-dashboard](https://github.com/zaf-x/wow-mgmt-dashboard)
+  面板就是用它。
 
 完整的生产环境部署（systemd、TLS、安全加固）见
 [docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)。

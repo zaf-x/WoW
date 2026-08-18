@@ -36,5 +36,6 @@ timer = 600                      # seconds idle before the callback fires (WOW_I
 host = "127.0.0.1"               # management API bind address (WOW_API_HOST)
 port = 8000                      # management API port, 0 disables (WOW_API_PORT)
 token = ""                       # bearer token, empty = no auth (WOW_API_TOKEN)
+cors = "*"                       # allowed browser origins, comma-separated (WOW_API_CORS)
 
 # verbose = false                # top-level key, debug logging (WOW_VERBOSE)

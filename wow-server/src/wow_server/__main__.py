@@ -44,7 +44,7 @@ def main() -> None:
         uvicorn_server = None
         api_kw = cfg.get_api_kwargs()
         if api_kw["port"]:
-            api = API(server, token=api_kw["token"])
+            api = API(server, token=api_kw["token"], cors=api_kw["cors"])
             uvicorn_config = uvicorn.Config(
                 api.app, host=api_kw["host"], port=api_kw["port"], log_level="warning"
             )
