@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import ipaddress
 import asyncio
 import random
+import socket
 import ssl
 from typing import Callable
 from wow_common.protocol import unpack, PacketType, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, ApplicationData, Ping, Pong  # type: ignore
@@ -43,7 +44,8 @@ class Server:
     packets are demultiplexed to the owning client by destination address.
 
     Attributes:
-        host: Listen address.
+        host_ipv4: IPv4 listen address.
+        host_ipv6: IPv6 listen address; empty disables IPv6.
         port: Listen port.
         auth_handler: The handler of authentication, accepts a 128-bit authentication token as an integer.
         interface: Physical egress interface used for NAT.
@@ -55,7 +57,7 @@ class Server:
         addr_map: Maps ``(family, address)`` to the client owning that address.
     """
 
-    def __init__(self, host: str, port: int, interface: str,
+    def __init__(self, host_ipv4: str, host_ipv6: str, port: int, interface: str,
                  auth_handler: Callable[[int], tuple[bool, int]],
                  cert: str, key: str, *,
                  ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False,
@@ -64,7 +66,9 @@ class Server:
         """Initialize the server.
 
         Args:
-            host: Listen address.
+            host_ipv4: IPv4 listen address, e.g. ``"0.0.0.0"``.
+            host_ipv6: IPv6 listen address, e.g. ``"::"``; empty disables
+                the IPv6 listener.
             port: Listen port.
             interface: Physical egress interface used for NAT, e.g. ``"ens5"``.
             auth_handler: The handler of authentication, accepts a 128-bit
@@ -89,7 +93,8 @@ class Server:
             idle_timer: Seconds without clients before ``idle_callback``
                 fires (default 600).
         """
-        self.host = host
+        self.host_ipv4 = host_ipv4
+        self.host_ipv6 = host_ipv6
         self.port = port
         self.cert = cert
         self.key = key
@@ -311,16 +316,32 @@ class Server:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_ctx.load_cert_chain(self.cert, self.key)
 
-        server = await asyncio.start_server(
-            self.handle_remote,
-            self.host,
-            self.port,
-            ssl=ssl_ctx,
-        )
-        rich.print(f"[green]Server listening on {self.host}:{self.port}[/green]")
+        # Bind one listener per family. The IPv6 socket must be V6ONLY so it
+        # can coexist with a wildcard IPv4 listener on the same port (Linux
+        # defaults to bindv6only=0, where a bare "::" bind would conflict).
+        servers: list[asyncio.AbstractServer] = []
+        if self.host_ipv4:
+            servers.append(await asyncio.start_server(
+                self.handle_remote, self.host_ipv4, self.port, ssl=ssl_ctx,
+            ))
+            rich.print(f"[green]Server listening on {self.host_ipv4}:{self.port} (v4)[/green]")
+        if self.host_ipv6:
+            loop = asyncio.get_running_loop()
+            sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((self.host_ipv6, self.port))
+            servers.append(await asyncio.start_server(
+                self.handle_remote, sock=sock, ssl=ssl_ctx,
+            ))
+            rich.print(f"[green]Server listening on {self.host_ipv6}:{self.port} (v6)[/green]")
 
-        async with server:
-            await server.serve_forever()
+        try:
+            await asyncio.gather(*(server.serve_forever() for server in servers))
+        finally:
+            for server in servers:
+                server.close()
+                await server.wait_closed()
 
     def kick(self, remote_id: int) -> bool:
         """Close the connection of the client carrying ``remote_id``.

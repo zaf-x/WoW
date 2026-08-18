@@ -16,17 +16,20 @@
 ## 用法
 
 ```bash
-wow-server --host 0.0.0.0 --port 9999 \
+wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
            --token <32位hex> --iface eth0 \
            --cert cert.pem --key key.pem [--masquerade]
 ```
 
-大多数选项都可以用 `WOW_*` 环境变量设置（`WOW_HOST`、`WOW_PORT`、
-`WOW_TOKEN`、`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
+选项也可以通过 `WOW_*` 环境变量或可选的 TOML 配置文件设置（`--config`，
+模板见 [`templates/config.toml`](../../templates/config.toml)）；优先级为
+命令行参数 > TOML > 环境变量 > 默认值。环境变量有
+（`WOW_HOST_IPV4`、`WOW_HOST_IPV6`、`WOW_PORT`、`WOW_TOKEN`、
+`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
 `WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`、
-`WOW_IDLE_SCRIPT`、`WOW_IDLE_TIMER`、`WOW_IPV6_ROTATE_INTERVAL`、
-`WOW_API_HOST`、`WOW_API_PORT`、`WOW_API_TOKEN`）；
-`--masquerade` 与 `--verbose` 仅支持命令行。
+`WOW_MASQUERADE`、`WOW_IDLE_SCRIPT`、`WOW_IDLE_TIMER`、
+`WOW_IPV6_ROTATE_INTERVAL`、`WOW_API_HOST`、`WOW_API_PORT`、
+`WOW_API_TOKEN`、`WOW_VERBOSE`）。
 
 - `--masquerade`：对错误认证回复假成功，随后静默丢弃其流量
 - `--script-auth --auth-script auth.py`：使用导出

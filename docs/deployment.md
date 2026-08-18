@@ -73,13 +73,18 @@ is already TLS, so the listener is indistinguishable from HTTPS.
 `/opt/wow/wow-server.conf` (keep it owner-only, it holds the token):
 
 ```ini
-WOW_HOST=0.0.0.0
+WOW_HOST_IPV4=0.0.0.0
+WOW_HOST_IPV6=::
 WOW_PORT=443
 WOW_TOKEN=<32-hex-chars>
 WOW_IFACE=eth0
 WOW_CERT=/opt/wow/cert.pem
 WOW_KEY=/opt/wow/key.pem
 ```
+
+The same settings can alternatively live in a TOML config file passed
+via `--config` (see [`templates/config.toml`](../templates/config.toml));
+precedence is command-line flag > TOML > env > default.
 
 `/etc/systemd/system/wow-server.service`:
 

@@ -30,20 +30,23 @@ class _EmbeddedServer(uvicorn.Server):
 def main() -> None:
     """Run the server until interrupted."""
     args = config.parse_args()
+    cfg = config.Config(args.config)
+    cfg.load()
     logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
+        level=logging.DEBUG if cfg.verbose else logging.INFO,
         format="%(levelname)s:%(name)s:%(message)s",
     )
-    server = Server(**config.get_kwargs())
+    server = Server(**cfg.get_kwargs())
 
     async def run() -> None:
         """Run the VPN server and, when enabled, the management API on the same loop."""
         api_task = None
         uvicorn_server = None
-        if args.api_port:
-            api = API(server, token=args.api_token)
+        api_kw = cfg.get_api_kwargs()
+        if api_kw["port"]:
+            api = API(server, token=api_kw["token"])
             uvicorn_config = uvicorn.Config(
-                api.app, host=args.api_host, port=args.api_port, log_level="warning"
+                api.app, host=api_kw["host"], port=api_kw["port"], log_level="warning"
             )
             uvicorn_server = _EmbeddedServer(uvicorn_config)
             api_task = asyncio.create_task(uvicorn_server.serve())

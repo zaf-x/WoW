@@ -70,13 +70,18 @@ openssl rand -hex 16
 `/opt/wow/wow-server.conf`（包含 token，权限设成仅所有者可读）：
 
 ```ini
-WOW_HOST=0.0.0.0
+WOW_HOST_IPV4=0.0.0.0
+WOW_HOST_IPV6=::
 WOW_PORT=443
 WOW_TOKEN=<32位hex>
 WOW_IFACE=eth0
 WOW_CERT=/opt/wow/cert.pem
 WOW_KEY=/opt/wow/key.pem
 ```
+
+同样配置也可写入 TOML 配置文件，用 `--config` 指定（见
+[`templates/config.toml`](../templates/config.toml)）；优先级为
+命令行参数 > TOML > 环境变量 > 默认值。
 
 `/etc/systemd/system/wow-server.service`：
 

@@ -28,7 +28,8 @@ dependencies = [
   "wow-common",
   "rich",
   "fastapi",
-  "uvicorn"
+  "uvicorn",
+  "tomlkit"
 ]
 
 [project.scripts]

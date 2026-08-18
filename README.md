@@ -76,18 +76,20 @@ pip install ./wow-common ./wow-server
 Run the server:
 
 ```bash
-wow-server --host 0.0.0.0 --port 9999 \
+wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
            --token <32-hex-chars> --iface eth0 \
            --cert cert.pem --key key.pem
 ```
 
-Most options can also be set through a `WOW_*` environment variable
-(`WOW_HOST`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`, `WOW_CERT`, `WOW_KEY`,
-`WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`, `WOW_SCRIPT_AUTH`,
-`WOW_AUTH_SCRIPT`, `WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`,
-`WOW_IPV6_ROTATE_INTERVAL`, `WOW_API_HOST`, `WOW_API_PORT`,
-`WOW_API_TOKEN`);
-`--masquerade` and `--verbose` are CLI-only.
+Options can also come from a `WOW_*` environment variable or an optional
+TOML config file (`--config`, default `/etc/wow/config.toml`; template:
+[`templates/config.toml`](templates/config.toml)). Precedence is
+command-line flag > TOML > env > default. The env variables are
+(`WOW_HOST_IPV4`, `WOW_HOST_IPV6`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`,
+`WOW_CERT`, `WOW_KEY`, `WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`,
+`WOW_SCRIPT_AUTH`, `WOW_AUTH_SCRIPT`, `WOW_MASQUERADE`,
+`WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`, `WOW_IPV6_ROTATE_INTERVAL`,
+`WOW_API_HOST`, `WOW_API_PORT`, `WOW_API_TOKEN`, `WOW_VERBOSE`).
 
 - `--masquerade`: reply to bad auth attempts with a fake success, then
   silently drop their traffic

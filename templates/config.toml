@@ -1,0 +1,41 @@
+# WoW VPN server configuration template.
+#
+# Copy to /etc/wow/config.toml (or pass --config) and fill in your own
+# values. Every key can instead be provided via a command-line flag
+# (highest precedence) or a WOW_* environment variable; the TOML file
+# sits in between: CLI flag > TOML > env > built-in default.
+#
+# All values here are placeholders — do not deploy them verbatim.
+
+[network]
+host_ipv4 = "0.0.0.0"            # IPv4 listen address (WOW_HOST_IPV4)
+host_ipv6 = "::"                 # IPv6 listen address, "" disables (WOW_HOST_IPV6)
+port = 9999                      # listen port (WOW_PORT)
+interface = "eth0"               # physical egress interface for NAT (WOW_IFACE)
+ipv6_prefix = "fd08::/64"        # IPv6 tunnel network (WOW_IPV6_PREFIX);
+                                 #   use a provider-routed public prefix for
+                                 #   global client addresses, e.g. 2001:db8::/64
+ipv6_proxy_ndp = false           # proxy-NDP for on-link prefixes (WOW_IPV6_PROXY_NDP)
+ipv6_rotate_interval = 3600      # seconds between IPv6 privacy rotations (WOW_IPV6_ROTATE_INTERVAL)
+
+[tls]
+cert = "/path/to/server.crt"     # TLS certificate (WOW_CERT)
+key = "/path/to/server.key"      # TLS private key (WOW_KEY)
+
+[auth]
+token = "00000000000000000000000000000000"   # 128-bit token, 32 hex chars (WOW_TOKEN);
+                                             #   mutually exclusive with script below
+# script = "/path/to/auth.py"    # exports auth_handler(token) -> (bool, int);
+#                                #   presence enables script auth (WOW_AUTH_SCRIPT)
+masquerade = false               # fake success for bad auth, then drop (WOW_MASQUERADE)
+
+[idle]
+# script = "/path/to/idle.py"    # exports idle_callback(), run when idle (WOW_IDLE_SCRIPT)
+timer = 600                      # seconds idle before the callback fires (WOW_IDLE_TIMER)
+
+[api]
+host = "127.0.0.1"               # management API bind address (WOW_API_HOST)
+port = 8000                      # management API port, 0 disables (WOW_API_PORT)
+token = ""                       # bearer token, empty = no auth (WOW_API_TOKEN)
+
+# verbose = false                # top-level key, debug logging (WOW_VERBOSE)
