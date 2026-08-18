@@ -326,7 +326,6 @@ class Server:
             ))
             rich.print(f"[green]Server listening on {self.host_ipv4}:{self.port} (v4)[/green]")
         if self.host_ipv6:
-            loop = asyncio.get_running_loop()
             sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
             sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

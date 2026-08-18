@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="wow-server", description="WoW VPN server")
     parser.add_argument("--config", default=None,
                         help=f"path to the TOML config file "
-                             f"(default: {DEFAULT_CONFIG_PATH}, env WOW_CONFIG)")
+                             f"(default: {DEFAULT_CONFIG_PATH})")
     parser.add_argument("--host-ipv4", default=None,
                         help="IPv4 listen address (default: 0.0.0.0, env WOW_HOST_IPV4)")
     parser.add_argument("--host-ipv6", default=None,
@@ -187,8 +187,8 @@ class Config:
 
         def _get(section: str, cli_key: str, toml_key: str, env: str, default: Any,
                  convert: Callable[[str], Any] = str) -> Any:
-            table = toml.get(section)
-            toml_val = table.get(toml_key) if table is not None else None
+            table = toml.get(section) # type: ignore
+            toml_val = table.get(toml_key) if table is not None else None # type: ignore
             return _resolve(getattr(args, cli_key, None), toml_val,
                             os.environ.get(env), default, convert)
 
@@ -205,27 +205,27 @@ class Config:
         key = _get("tls", "key", "key", "WOW_KEY", None)
         masquerade = _get("auth", "masquerade", "masquerade", "WOW_MASQUERADE", False, _env_bool)
 
-        auth_table = self.toml.get("auth")
+        auth_table = self.toml.get("auth") # type: ignore
         script_auth = _resolve(
             args.script_auth,
-            bool(auth_table.get("script")) if auth_table is not None else None,
+            bool(auth_table.get("script")) if auth_table is not None else None, # type: ignore
             os.environ.get("WOW_SCRIPT_AUTH"), False, _env_bool,
         )
         auth_script = _resolve(
             args.auth_script,
-            auth_table.get("script") if auth_table is not None else None,
+            auth_table.get("script") if auth_table is not None else None, #type: ignore
             os.environ.get("WOW_AUTH_SCRIPT"), None,
         )
         token_hex = _resolve(
             args.token,
-            auth_table.get("token") if auth_table is not None else None,
+            auth_table.get("token") if auth_table is not None else None,# type: ignore
             os.environ.get("WOW_TOKEN"), None,
         )
 
-        idle_table = self.toml.get("idle")
+        idle_table = self.toml.get("idle") # type: ignore
         idle_script = _resolve(
             args.idle_script,
-            idle_table.get("script") if idle_table is not None else None,
+            idle_table.get("script") if idle_table is not None else None, # type: ignore
             os.environ.get("WOW_IDLE_SCRIPT"), None,
         )
         idle_timer = _get("idle", "idle_timer", "timer", "WOW_IDLE_TIMER", 600, int)
@@ -259,7 +259,7 @@ class Config:
             except (TypeError, ValueError):
                 print("E: --token must be a hex string")
                 exit(1)
-            auth_handler = lambda x: (x == token, uuid.uuid4().int)
+            auth_handler: Callable[[int], tuple[bool, int]] = lambda x: (x == token, uuid.uuid4().int)
 
         idle_callback: Callable[[], None] | None = None
         if idle_script:
@@ -291,11 +291,11 @@ class Config:
         if self.toml is None:
             raise TypeError("TOML not loaded yet")
         args = parse_args()
-        api_table = self.toml.get("api")
+        api_table = self.toml.get("api") # type: ignore
 
         def _get(cli_key: str, toml_key: str, env: str, default: Any,
                  convert: Callable[[str], Any] = str) -> Any:
-            toml_val = api_table.get(toml_key) if api_table is not None else None
+            toml_val = api_table.get(toml_key) if api_table is not None else None # type: ignore
             return _resolve(getattr(args, cli_key, None), toml_val,
                             os.environ.get(env), default, convert)
 
@@ -311,5 +311,5 @@ class Config:
         if self.toml is None:
             raise TypeError("TOML not loaded yet")
         args = parse_args()
-        return _resolve(args.verbose, self.toml.get("verbose"),
+        return _resolve(args.verbose, self.toml.get("verbose"), # type: ignore
                         os.environ.get("WOW_VERBOSE"), False, _env_bool)
