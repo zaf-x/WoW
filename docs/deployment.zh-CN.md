@@ -53,12 +53,18 @@ ln -s /etc/letsencrypt/live/vpn.example.com/privkey.pem  /opt/wow/key.pem
 
 ## 3. 认证 token
 
+每个用户生成一个 token 和一个稳定的 remote id，然后往 token 文件里
+加一行：
+
 ```bash
-openssl rand -hex 16
+openssl rand -hex 16   # 用户的 token
+openssl rand -hex 16   # 用户的稳定 remote id
+echo "<token> <username> <remote-id>" | sudo tee -a /opt/wow/tokens.secret
+sudo chmod 600 /opt/wow/tokens.secret
 ```
 
-客户端连接时必须出示这个 128-bit token。可插拔认证见
-[authentication.md](authentication.zh-CN.md)。
+客户端连接时出示自己的 token；remote id 让它在重连后保持隧道地址
+不变。可插拔认证见 [authentication.md](authentication.zh-CN.md)。
 
 ## 4. 开放端口
 
@@ -67,13 +73,13 @@ openssl rand -hex 16
 
 ## 5. systemd 服务
 
-`/opt/wow/wow-server.conf`（包含 token，权限设成仅所有者可读）：
+`/opt/wow/wow-server.conf`（包含 token 文件路径，权限设成仅所有者可读）：
 
 ```ini
 WOW_HOST_IPV4=0.0.0.0
 WOW_HOST_IPV6=::
 WOW_PORT=443
-WOW_TOKEN=<32位hex>
+WOW_TOKEN_FILE=/opt/wow/tokens.secret
 WOW_IFACE=eth0
 WOW_CERT=/opt/wow/cert.pem
 WOW_KEY=/opt/wow/key.pem
@@ -157,9 +163,9 @@ curl -4 https://api.ipify.org   # 经隧道的公网 IPv4
 curl -6 https://api6.ipify.org  # 经隧道的公网 IPv6
 ```
 
-客户端在共享网关 TUN 上按扁平地址分配：IPv4 顺序发放（第 1 个客户端
-即 `10.8.0.2`，随后 `10.8.0.3`……），IPv6 则从前缀中随机挑选（网关
-本身是 `10.8.0.1` / `fd08::1`）。
+客户端在共享网关 TUN 上按扁平地址分配：IPv4 地址按 remote id 保持
+稳定（新用户拿到下一个空闲地址，重连用户拿回之前的地址），IPv6 则
+从前缀中随机挑选（网关本身是 `10.8.0.1` / `fd08::1`）。
 
 ## 9. 公网 IPv6（可选）
 
@@ -211,6 +217,5 @@ IPv6，没有 NAT。
   `ExecStart=/opt/wow/venv/bin/wow-server --masquerade`）：认证失败
   时回复假成功并静默丢弃其流量，而不是明确拒绝，对扫描器表现为
   "开着但无用"的端口。
-- 需要按客户端做策略、限流或日志时，用
-  `--script-auth --auth-script auth.py`。
+- 需要按客户端做策略、限流或日志时，用 `--auth-script auth.py`。
 - 防火墙只放行隧道端口，其余端口不需要对外暴露。

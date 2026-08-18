@@ -12,9 +12,9 @@ environment variables and CLI flags alone (matching pre-0.1 deployments).
 import argparse
 import importlib.util
 import os
-import uuid
 from types import ModuleType
 from typing import Any, Callable
+from .auth import Auth
 
 import tomlkit
 
@@ -53,12 +53,11 @@ def parse_args() -> argparse.Namespace:
                         help="TLS certificate file (env WOW_CERT)")
     parser.add_argument("--key", default=None,
                         help="TLS private key file (env WOW_KEY)")
-    parser.add_argument("--script-auth", action="store_true", default=None,
-                        help="use a python script for authentication (env WOW_SCRIPT_AUTH)")
     parser.add_argument("--auth-script", default=None,
                         help="file exporting auth_handler() (env WOW_AUTH_SCRIPT)")
-    parser.add_argument("--token", default=None,
-                        help="128-bit auth token as 32 hex chars (env WOW_TOKEN)")
+    parser.add_argument("--token-file", default=None,
+                        help="token file, lines '<token-hex> <username> <remote-id-hex>' "
+                             "(env WOW_TOKEN_FILE)")
     parser.add_argument("--masquerade", action="store_true", default=None,
                         help="reply to bad auth with a fake success, then drop their traffic "
                              "(env WOW_MASQUERADE)")
@@ -206,20 +205,15 @@ class Config:
         masquerade = _get("auth", "masquerade", "masquerade", "WOW_MASQUERADE", False, _env_bool)
 
         auth_table = self.toml.get("auth") # type: ignore
-        script_auth = _resolve(
-            args.script_auth,
-            bool(auth_table.get("script")) if auth_table is not None else None, # type: ignore
-            os.environ.get("WOW_SCRIPT_AUTH"), False, _env_bool,
-        )
         auth_script = _resolve(
             args.auth_script,
             auth_table.get("script") if auth_table is not None else None, #type: ignore
             os.environ.get("WOW_AUTH_SCRIPT"), None,
         )
-        token_hex = _resolve(
-            args.token,
-            auth_table.get("token") if auth_table is not None else None,# type: ignore
-            os.environ.get("WOW_TOKEN"), None,
+        token_file = _resolve(
+            args.token_file,
+            auth_table.get("token_file") if auth_table is not None else None, # type: ignore
+            os.environ.get("WOW_TOKEN_FILE"), None
         )
 
         idle_table = self.toml.get("idle") # type: ignore
@@ -236,17 +230,15 @@ class Config:
                 ("interface", interface), ("cert", cert), ("key", key),
             ) if not value
         ]
-        if not script_auth and not token_hex:
-            missing.append("token")
+        if not auth_script and not token_file:
+            missing.append("token file or auth script")
         if missing:
             print("E: required setting(s) missing: " + ", ".join(missing))
             print("   provide them via CLI flag, the TOML config file, or WOW_* env vars")
             exit(1)
 
-        if script_auth:
-            if not auth_script:
-                print("Must give auth script when using script auth")
-                exit(1)
+        auth_handler: Callable[[int], tuple[bool, int]]
+        if auth_script:
             module = self._load_pluggable_script(auth_script)
             try:
                 auth_handler = module.auth_handler
@@ -254,12 +246,7 @@ class Config:
                 print("E: invalid script: must provide `auth_handler` function")
                 exit(1)
         else:
-            try:
-                token = int(token_hex, 16)
-            except (TypeError, ValueError):
-                print("E: --token must be a hex string")
-                exit(1)
-            auth_handler: Callable[[int], tuple[bool, int]] = lambda x: (x == token, uuid.uuid4().int)
+            auth_handler = Auth(token_file)
 
         idle_callback: Callable[[], None] | None = None
         if idle_script:

@@ -75,7 +75,7 @@ pip install ./wow-common ./wow-server
 
 ```bash
 wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
-           --token <32位hex> --iface eth0 \
+           --token-file /etc/wow/tokens.secret --iface eth0 \
            --cert cert.pem --key key.pem
 ```
 
@@ -83,17 +83,17 @@ wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
 默认 `/etc/wow/config.toml`，模板见
 [`templates/config.toml`](templates/config.toml)）。优先级为
 命令行参数 > TOML > 环境变量 > 默认值。环境变量有
-（`WOW_HOST_IPV4`、`WOW_HOST_IPV6`、`WOW_PORT`、`WOW_TOKEN`、
+（`WOW_HOST_IPV4`、`WOW_HOST_IPV6`、`WOW_PORT`、`WOW_TOKEN_FILE`、
 `WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
-`WOW_IPV6_PROXY_NDP`、`WOW_SCRIPT_AUTH`、`WOW_AUTH_SCRIPT`、
+`WOW_IPV6_PROXY_NDP`、`WOW_AUTH_SCRIPT`、
 `WOW_MASQUERADE`、`WOW_IDLE_SCRIPT`、`WOW_IDLE_TIMER`、
 `WOW_IPV6_ROTATE_INTERVAL`、`WOW_API_HOST`、`WOW_API_PORT`、
 `WOW_API_TOKEN`、`WOW_VERBOSE`）。
 
 - `--masquerade`：对错误认证回复假成功，随后静默丢弃其流量
-- `--script-auth --auth-script auth.py`：使用导出
+- `--auth-script auth.py`：使用导出
   `auth_handler(token: int) -> tuple[bool, int]` 的 Python 文件做
-  自定义认证（返回判定结果与连接 id）
+  自定义认证（返回判定结果与稳定的 remote id）
 - `--idle-script idle.py --idle-timer 600`：当服务端在指定秒数内没有
   任何客户端时，运行 Python 文件里的 `idle_callback()`——例如闲置实例
   自动关机
@@ -139,13 +139,12 @@ sudo wow-client launch
 
 ## 安全说明
 
-- 认证使用 128-bit 共享 token（32 位 hex），在 TLS 会话内传输，
+- 每个用户使用 128-bit token（32 位 hex），在 TLS 会话内传输，
   暴力破解不可行。
 - 用 `--masquerade` 启动服务端，可以让未认证的扫描器看到一个
   "开着但无用"的端口。
-- Token 认证是"全有或全无"的：需要按客户端做策略、限流或日志时，
-  请使用 `--script-auth`。可插拔认证 API 见
-  [docs/authentication.zh-CN.md](docs/authentication.zh-CN.md)。
+- 需要按客户端做策略、限流或日志时，使用 `--auth-script`。可插拔
+  认证 API 见 [docs/authentication.zh-CN.md](docs/authentication.zh-CN.md)。
 
 ## License
 

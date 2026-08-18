@@ -101,7 +101,10 @@ class Server:
         self.auth_handler = auth_handler
         self.masquerade = masquerade
         self.interface = interface
-        self.ip_cnt = 1
+        # Stable IPv4 per remote id (a reconnect keeps the same address);
+        # v4_cursor walks hosts 2..254 when handing out fresh addresses.
+        self.id_v4: dict[int, int] = {}
+        self.v4_cursor = 0
         self.proxy_ndp = proxy_ndp
         self.ipv6_net = ipaddress.IPv6Network(ipv6_prefix, strict=False)
 
@@ -161,6 +164,22 @@ class Server:
                 continue
             if (6, candidate) not in self.addr_map:
                 return candidate
+
+    def _assign_v4(self) -> int:
+        """Pick a free IPv4 client address from 10.8.0.0/24 (hosts 2..254).
+
+        Raises:
+            RuntimeError: If every host is currently assigned (253
+                concurrent clients).
+        """
+        base = 0xA080000
+        for _ in range(253):
+            host = 2 + self.v4_cursor
+            self.v4_cursor = (self.v4_cursor + 1) % 253
+            candidate = base | host
+            if (4, candidate) not in self.addr_map:
+                return candidate
+        raise RuntimeError("IPv4 tunnel network exhausted (10.8.0.0/24 full)")
 
     async def idle_scan(self) -> None:
         """Invoke ``idle_callback`` whenever the server has had no clients for ``idle_timer`` seconds.
@@ -229,7 +248,9 @@ class Server:
         """
         if remote in self.remotes:
             self.remotes.remove(remote)
-        if remote.client_v4 is not None:
+        if remote.client_v4 is not None and self.addr_map.get((4, remote.client_v4)) is remote:
+            # Only release the address if we still own it: with stable
+            # per-id addresses a newer connection may already hold it.
             self.addr_map.pop((4, remote.client_v4), None)
         if remote.client_v6 is not None:
             self.addr_map.pop((6, remote.client_v6), None)
@@ -265,11 +286,19 @@ class Server:
                 print(f"Susp remote: {remote}")
             remote.authorized = True
             remote.remote_id = remote_id
-            self.ip_cnt += 1
+            # IPv4 is stable per remote id: a reconnect with the same id
+            # gets the same address back (id_v4 caches the assignment);
+            # masqueraded connections get a throwaway address, never cached.
+            if success:
+                client_ip = self.id_v4.get(remote_id)
+                if client_ip is None:
+                    client_ip = self._assign_v4()
+                    self.id_v4[remote_id] = client_ip
+            else:
+                client_ip = self._assign_v4()
             # Flat tunnel networks behind the gateway TUN: IPv4 10.8.0.0/24
             # (server 10.8.0.1, clients 10.8.0.N); IPv6 prefix configurable
             # (default ULA fd08::/64, or a public prefix for global addresses).
-            client_ip = 0xA080000 | self.ip_cnt
             client_v6 = self._random_v6()
             self.addr_map[(4, client_ip)] = remote
             self.addr_map[(6, client_v6)] = remote

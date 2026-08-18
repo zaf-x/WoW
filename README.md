@@ -77,7 +77,7 @@ Run the server:
 
 ```bash
 wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
-           --token <32-hex-chars> --iface eth0 \
+           --token-file /etc/wow/tokens.secret --iface eth0 \
            --cert cert.pem --key key.pem
 ```
 
@@ -85,17 +85,17 @@ Options can also come from a `WOW_*` environment variable or an optional
 TOML config file (`--config`, default `/etc/wow/config.toml`; template:
 [`templates/config.toml`](templates/config.toml)). Precedence is
 command-line flag > TOML > env > default. The env variables are
-(`WOW_HOST_IPV4`, `WOW_HOST_IPV6`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`,
-`WOW_CERT`, `WOW_KEY`, `WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`,
-`WOW_SCRIPT_AUTH`, `WOW_AUTH_SCRIPT`, `WOW_MASQUERADE`,
+(`WOW_HOST_IPV4`, `WOW_HOST_IPV6`, `WOW_PORT`, `WOW_TOKEN_FILE`,
+`WOW_IFACE`, `WOW_CERT`, `WOW_KEY`, `WOW_IPV6_PREFIX`,
+`WOW_IPV6_PROXY_NDP`, `WOW_AUTH_SCRIPT`, `WOW_MASQUERADE`,
 `WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`, `WOW_IPV6_ROTATE_INTERVAL`,
 `WOW_API_HOST`, `WOW_API_PORT`, `WOW_API_TOKEN`, `WOW_VERBOSE`).
 
 - `--masquerade`: reply to bad auth attempts with a fake success, then
   silently drop their traffic
-- `--script-auth --auth-script auth.py`: plug in a Python file exporting
+- `--auth-script auth.py`: plug in a Python file exporting
   `auth_handler(token: int) -> tuple[bool, int]` for custom
-  authentication (verdict, per-connection id)
+  authentication (verdict, stable remote id)
 - `--idle-script idle.py --idle-timer 600`: run `idle_callback()` from a
   Python file once the server has had no clients for the given number of
   seconds — e.g. auto-shutdown of an unused instance
@@ -144,14 +144,13 @@ sudo wow-client launch
 
 ## Security notes
 
-- Authentication uses a shared 128-bit token (32 hex chars) exchanged
+- Authentication uses a 128-bit token (32 hex chars) per user, exchanged
   inside the TLS session; brute-forcing it is infeasible.
 - Run the server with `--masquerade` to make it behave like a live but
   useless endpoint to unauthenticated scanners.
-- Token-based auth is all-or-nothing: use `--script-auth` when you need
-  per-client policies, rate limiting or logging. See
-  [docs/authentication.md](docs/authentication.md) for the pluggable
-  authentication API.
+- For per-client policies, rate limiting or logging, use
+  `--auth-script`. See [docs/authentication.md](docs/authentication.md)
+  for the pluggable authentication API.
 
 ## License
 

@@ -23,8 +23,7 @@ cert = "/path/to/server.crt"     # TLS certificate (WOW_CERT)
 key = "/path/to/server.key"      # TLS private key (WOW_KEY)
 
 [auth]
-token = "00000000000000000000000000000000"   # 128-bit token, 32 hex chars (WOW_TOKEN);
-                                             #   mutually exclusive with script below
+token_file = "/path/to/tokens.secret"   # lines '<token-hex> <username> <remote-id-hex>' (WOW_TOKEN_FILE)
 # script = "/path/to/auth.py"    # exports auth_handler(token) -> (bool, int);
 #                                #   presence enables script auth (WOW_AUTH_SCRIPT)
 masquerade = false               # fake success for bad auth, then drop (WOW_MASQUERADE)

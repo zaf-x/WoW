@@ -68,7 +68,7 @@ class API:
             return {
                 "clients": len(self.server.remotes),
                 "addr_map_size": len(self.server.addr_map),
-                "ip_cnt": self.server.ip_cnt,
+                "v4_assignments": len(self.server.id_v4),
                 "tun_up": self.server.tun is not None,
                 "idle_timer": self.server.idle_timer,
                 "ipv6_rotate_interval": self.server.ipv6_rotate_interval,

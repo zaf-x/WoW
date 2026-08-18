@@ -6,7 +6,7 @@
 [English](https://github.com/zaf-x/WoW/blob/main/wow-server/README.md) | [中文](https://github.com/zaf-x/WoW/blob/main/wow-server/README.zh-CN.md)
 
 The server for the [WoW VPN](https://github.com/zaf-x/WoW#readme): accepts TLS clients,
-authenticates them with a shared 128-bit token (or a custom auth script),
+authenticates them with a token file (or a custom auth script),
 creates a gateway TUN device (one per server, shared by all clients)
 and NATs their traffic out through the
 physical interface. Each client is assigned IPv4 (`10.8.0.0/24`) and an
@@ -19,7 +19,7 @@ Requires Linux, root, `/dev/net/tun` and a TLS certificate.
 
 ```bash
 wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
-           --token <32-hex-chars> --iface eth0 \
+           --token-file /etc/wow/tokens.secret --iface eth0 \
            --cert cert.pem --key key.pem [--masquerade]
 ```
 
@@ -27,17 +27,21 @@ Options can also come from a `WOW_*` environment variable or an optional
 TOML config file (`--config`, template:
 [`templates/config.toml`](../../templates/config.toml)); precedence is
 command-line flag > TOML > env > default. The env variables are
-(`WOW_HOST_IPV4`, `WOW_HOST_IPV6`, `WOW_PORT`, `WOW_TOKEN`, `WOW_IFACE`,
-`WOW_CERT`, `WOW_KEY`, `WOW_IPV6_PREFIX`, `WOW_IPV6_PROXY_NDP`,
-`WOW_SCRIPT_AUTH`, `WOW_AUTH_SCRIPT`, `WOW_MASQUERADE`,
+(`WOW_HOST_IPV4`, `WOW_HOST_IPV6`, `WOW_PORT`, `WOW_TOKEN_FILE`,
+`WOW_IFACE`, `WOW_CERT`, `WOW_KEY`, `WOW_IPV6_PREFIX`,
+`WOW_IPV6_PROXY_NDP`, `WOW_AUTH_SCRIPT`, `WOW_MASQUERADE`,
 `WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`, `WOW_IPV6_ROTATE_INTERVAL`,
 `WOW_API_HOST`, `WOW_API_PORT`, `WOW_API_TOKEN`, `WOW_VERBOSE`).
 
+- `--token-file /etc/wow/tokens.secret`: default auth — one entry per
+  line `<token-hex> <username> <remote-id-hex>`. The remote id is
+  stable, so a client reconnecting with the same token keeps the same
+  IPv4 address (revoke a user by deleting their line)
 - `--masquerade`: reply to bad auth attempts with a fake success, then
   silently drop their traffic
-- `--script-auth --auth-script auth.py`: use a Python file exporting
+- `--auth-script auth.py`: use a Python file exporting
   `auth_handler(token: int) -> tuple[bool, int]` for custom
-  authentication (verdict, per-connection id)
+  authentication (verdict, stable remote id)
 - `--idle-script idle.py --idle-timer 600`: run `idle_callback()` from a
   Python file once the server has had no clients for the given number of
   seconds — e.g. auto-shutdown of an unused instance

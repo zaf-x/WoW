@@ -53,13 +53,20 @@ ln -s /etc/letsencrypt/live/vpn.example.com/privkey.pem  /opt/wow/key.pem
 Without a domain, generate a self-signed CA and sign a server
 certificate with it; clients then trust the CA via `-c ca.pem`.
 
-## 3. Authentication token
+## 3. Authentication tokens
+
+Generate a token and a stable remote id per user, then add one line to
+the token file:
 
 ```bash
-openssl rand -hex 16
+openssl rand -hex 16   # the user's token
+openssl rand -hex 16   # the user's stable remote id
+echo "<token> <username> <remote-id>" | sudo tee -a /opt/wow/tokens.secret
+sudo chmod 600 /opt/wow/tokens.secret
 ```
 
-The client must present this 128-bit token to connect. See
+The client presents its token to connect; the remote id keeps its
+tunnel address stable across reconnects. See
 [authentication.md](authentication.md) for pluggable auth alternatives.
 
 ## 4. Open the port
@@ -70,13 +77,13 @@ is already TLS, so the listener is indistinguishable from HTTPS.
 
 ## 5. systemd service
 
-`/opt/wow/wow-server.conf` (keep it owner-only, it holds the token):
+`/opt/wow/wow-server.conf` (keep it owner-only, it points at the token file):
 
 ```ini
 WOW_HOST_IPV4=0.0.0.0
 WOW_HOST_IPV6=::
 WOW_PORT=443
-WOW_TOKEN=<32-hex-chars>
+WOW_TOKEN_FILE=/opt/wow/tokens.secret
 WOW_IFACE=eth0
 WOW_CERT=/opt/wow/cert.pem
 WOW_KEY=/opt/wow/key.pem
@@ -163,10 +170,10 @@ curl -6 https://api6.ipify.org  # public IPv6 via the tunnel
 ```
 
 Clients are assigned flat addresses from the tunnel networks on the
-shared gateway TUN: IPv4 addresses are handed out sequentially (the
-first client is `10.8.0.2`, then `10.8.0.3`, ...), while IPv6
-addresses are picked randomly from the prefix (the gateway itself is
-`10.8.0.1` / `fd08::1`).
+shared gateway TUN: the IPv4 address is stable per remote id (fresh
+users get the next free host, reconnecting users get their previous
+address back), while IPv6 addresses are picked randomly from the
+prefix (the gateway itself is `10.8.0.1` / `fd08::1`).
 
 ## 9. Public IPv6 (optional)
 
@@ -224,7 +231,7 @@ Then verify by pinging a client's address from another host.
   `ExecStart=/opt/wow/venv/bin/wow-server --masquerade`) so failed auth
   attempts get a fake success and their traffic is silently dropped
   instead of an explicit rejection.
-- Use `--script-auth --auth-script auth.py` for per-client policy,
-  rate limiting or logging.
+- Use `--auth-script auth.py` for per-client policy, rate limiting or
+  logging.
 - The firewall should only expose the tunnel port; nothing else needs
   to be public.
