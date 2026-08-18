@@ -204,8 +204,9 @@ IPv6，没有 NAT。
   无客户端达到该时长后调用脚本里的 `idle_callback()`。典型用途是
   闲置时自动关机省钱。
 - **IPv6 隐私轮换**：`WOW_IPV6_ROTATE_INTERVAL`（默认 3600 秒，0
-  关闭）按周期给每个客户端重新分配一个随机 IPv6 地址。地址是替换
-  而非新增，因此每次轮换都会断开现有连接。
+  关闭）按周期给每个客户端重新分配一个随机 IPv6 地址——仅全局前缀
+  生效，ULA/NAT66 的客户端地址本就藏在 NAT 后面，无需轮换。地址是
+  替换而非新增，因此每次轮换都会断开现有连接。
 - **管理 API**：`WOW_API_HOST`（默认 `127.0.0.1`）/ `WOW_API_PORT`
   （默认 8000，0 关闭）/ `WOW_API_TOKEN`，提供 `GET /health`、
   `GET /clients`、`POST /clients/{id}/kick` 和 `GET /stats`。API 可以

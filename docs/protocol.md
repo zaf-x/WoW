@@ -86,5 +86,6 @@ length (`CIDR`, 1 byte) to configure on the client's TUN interface.
 
 Sent during the handshake right after the Authentication Response, and
 again at any later point when the server rotates the client's address
-(IPv6 privacy rotation, `--ipv6-rotate-interval`): the client then
-replaces its TUN address with the new one.
+(IPv6 privacy rotation, `--ipv6-rotate-interval`; global prefixes only,
+ULA/NAT66 clients never rotate): the client then replaces its TUN
+address with the new one.

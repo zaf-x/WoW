@@ -27,7 +27,8 @@ accept or reject it. Two modes are available:
    gateway TUN, and replies with `AuthenticationResponse(True, id)`
    followed by `IPv4Assign` and `IPv6Assign`. The **IPv4 address is
    stable per remote id**: reconnecting with the same id gets the same
-   IPv4 back (IPv6 stays random and rotates for privacy).
+   IPv4 back (IPv6 stays random, and rotates for privacy on global
+   prefixes).
 4. On failure — the server replies `AuthenticationResponse(False, 0)`,
    or pretends to succeed and silently drops everything in
    [masquerade mode](#masquerade-mode).

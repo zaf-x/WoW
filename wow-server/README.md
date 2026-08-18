@@ -47,8 +47,9 @@ command-line flag > TOML > env > default. The env variables are
   seconds — e.g. auto-shutdown of an unused instance
 - `--ipv6-rotate-interval 3600`: reassign every client a new random IPv6
   address from the tunnel prefix on this interval (privacy rotation;
-  default 1 hour, 0 disables). The address swap drops existing
-  connections, like renewing a public IP.
+  default 1 hour, 0 disables; global prefixes only — ULA/NAT66 never
+  rotate). The address swap drops existing connections, like renewing a
+  public IP.
 - `--api-host 127.0.0.1 --api-port 8000 --api-token <secret>`: management
   API (FastAPI) served on the same event loop: `GET /health`,
   `GET /clients`, `POST /clients/{id}/kick`, `GET /stats`. Port 0

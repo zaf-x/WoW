@@ -84,7 +84,8 @@ class Server:
                 EC2, where the instance owns a single /128 of the subnet.
             ipv6_rotate_interval: Seconds between reassigning each client
                 a fresh random IPv6 address from the tunnel prefix
-                (privacy rotation; default 3600, 0 disables).
+                (privacy rotation; default 3600, 0 disables; only applies
+                to global prefixes — ULA/NAT66 never rotate).
             masquerade: Reply to bad auth with a fake success, then drop
                 the connection's traffic (camouflage).
             idle_callback: Optional callable run when the server has had
@@ -120,14 +121,17 @@ class Server:
     async def ipv6_rotate_loop(self) -> None:
         """Reassign every connected client a new random IPv6 address periodically.
 
-        Every ``ipv6_rotate_interval`` seconds each client gets a fresh
-        random address from the tunnel prefix and is told to swap it on
-        its TUN interface. The address is replaced, not added, so existing
-        connections through the tunnel drop at each rotation (the privacy
-        trade-off of a rotating public IP). Set the interval to 0 to
-        disable rotation entirely.
+        Only runs for **global** tunnel prefixes. With a public prefix
+        every client carries a stable public IPv6 identity; rotating it
+        on ``ipv6_rotate_interval`` blurs that identity. NAT66/ULA
+        prefixes never rotate: the client address is already hidden
+        behind NAT, so a rotation would only drop connections for no
+        privacy gain. The address is replaced, not added, so existing
+        connections drop at each rotation (the privacy trade-off of a
+        rotating public IP). Set the interval to 0 to disable rotation.
         """
-        if not self.ipv6_rotate_interval or self.ipv6_net.prefixlen >= 128:
+        if not self.ipv6_rotate_interval or self.ipv6_net.prefixlen >= 128 \
+                or not self.ipv6_net.is_global:
             return
         while self.running:
             await asyncio.sleep(self.ipv6_rotate_interval)

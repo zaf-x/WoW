@@ -217,8 +217,9 @@ Then verify by pinging a client's address from another host.
   that long. A typical use is shutting the server down to save money.
 - **IPv6 privacy rotation**: `WOW_IPV6_ROTATE_INTERVAL` (default 3600 s,
   0 disables) reassigns each client a new random IPv6 address on that
-  cadence. The address is replaced, not added, so every rotation drops
-  existing connections.
+  cadence — global prefixes only, since a ULA/NAT66 client is already
+  hidden behind NAT. The address is replaced, not added, so every
+  rotation drops existing connections.
 - **Management API**: `WOW_API_HOST` (default `127.0.0.1`) /
   `WOW_API_PORT` (default 8000, 0 disables) / `WOW_API_TOKEN` expose
   `GET /health`, `GET /clients`, `POST /clients/{id}/kick` and

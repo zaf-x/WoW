@@ -23,7 +23,7 @@ WoW 使用共享密钥握手：客户端在 TLS 会话内发送 128-bit 认证 t
    隧道地址，把客户端注册到共享的网关 TUN 上，并回复
    `AuthenticationResponse(True, id)`，随后发送 `IPv4Assign` 和
    `IPv6Assign`。**IPv4 地址按 remote id 保持稳定**：同一 id 重连会
-   拿回同一个 IPv4（IPv6 仍是随机的，并参与隐私轮换）。
+   拿回同一个 IPv4（IPv6 仍是随机的，仅全局前缀参与隐私轮换）。
 4. 失败时 — 服务端回复 `AuthenticationResponse(False, 0)`；或在
    [伪装模式](#伪装模式) 下假装成功并静默丢弃所有数据。
 

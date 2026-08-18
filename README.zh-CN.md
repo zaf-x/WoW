@@ -98,8 +98,9 @@ wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
   任何客户端时，运行 Python 文件里的 `idle_callback()`——例如闲置实例
   自动关机
 - `--ipv6-rotate-interval 3600`：每隔指定秒数为每个客户端从隧道前缀
-  重新分配一个随机 IPv6 地址（隐私轮换；默认 1 小时，0 关闭）。地址
-  更换会断开现有连接，相当于换了一次公网 IP。
+  重新分配一个随机 IPv6 地址（隐私轮换；默认 1 小时，0 关闭；仅全局
+  前缀生效——ULA/NAT66 不轮换）。地址更换会断开现有连接，相当于换
+  了一次公网 IP。
 - `--api-host 127.0.0.1 --api-port 8000 --api-token <secret>`：在同一
   事件循环上提供管理 API（FastAPI）：`GET /health`、`GET /clients`、
   `POST /clients/{id}/kick`、`GET /stats`。端口为 0 时关闭；建议只绑
