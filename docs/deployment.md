@@ -125,7 +125,8 @@ ss -tlnp | grep 443
 journalctl -u wow-server -f
 ```
 
-You should see `Server listening on 0.0.0.0:443`.
+You should see `Server listening on 0.0.0.0:443 (v4)` and, with the
+default dual-stack setup, a matching `(v6)` line for `[::]:443`.
 
 ## 7. Connect a client
 
@@ -162,9 +163,10 @@ curl -6 https://api6.ipify.org  # public IPv6 via the tunnel
 ```
 
 Clients are assigned flat addresses from the tunnel networks on the
-shared gateway TUN: client #N gets `10.8.0.(N+1)/24` and
-`prefix::(N+1)` (the first client is `10.8.0.2` / `fd08::2`; the
-gateway itself is `10.8.0.1` / `fd08::1`).
+shared gateway TUN: IPv4 addresses are handed out sequentially (the
+first client is `10.8.0.2`, then `10.8.0.3`, ...), while IPv6
+addresses are picked randomly from the prefix (the gateway itself is
+`10.8.0.1` / `fd08::1`).
 
 ## 9. Public IPv6 (optional)
 
@@ -176,14 +178,15 @@ at a public prefix the provider routes to your server:
 WOW_IPV6_PREFIX=2001:db8:1:2::/64
 ```
 
-(or pass `--ipv6-prefix` on the command line). NAT66 is then disabled
-automatically, so clients reach the internet with their own global
-address — true end-to-end IPv6, no NAT.
+(or pass `--ipv6-prefix` on the command line). With a genuinely
+routable global prefix, NAT66 is disabled automatically, so clients
+reach the internet with their own global address — true end-to-end
+IPv6, no NAT.
 
 > `2001:db8::/32` is the RFC 3849 documentation range, shown as a
-> placeholder — use your provider's real global prefix. NAT66 stays on
-> for non-global prefixes (ULA, documentation), so the auto-off only
-> kicks in with a genuinely routable range.
+> placeholder only — copying this example verbatim will NOT disable
+> NAT66. NAT66 stays on for non-global prefixes (ULA, documentation);
+> the auto-off only kicks in with your provider's real global prefix.
 
 Provider setups differ:
 
@@ -199,7 +202,23 @@ Provider setups differ:
 
 Then verify by pinging a client's address from another host.
 
-## 10. Hardening
+## 10. Optional features
+
+- **Idle auto-shutdown**: `WOW_IDLE_SCRIPT=/path/to/idle.py` (or
+  `--idle-script`) with `WOW_IDLE_TIMER` (default 600 s) runs the
+  script's `idle_callback()` once the server has been clientless for
+  that long. A typical use is shutting the server down to save money.
+- **IPv6 privacy rotation**: `WOW_IPV6_ROTATE_INTERVAL` (default 3600 s,
+  0 disables) reassigns each client a new random IPv6 address on that
+  cadence. The address is replaced, not added, so every rotation drops
+  existing connections.
+- **Management API**: `WOW_API_HOST` (default `127.0.0.1`) /
+  `WOW_API_PORT` (default 8000, 0 disables) / `WOW_API_TOKEN` expose
+  `GET /health`, `GET /clients`, `POST /clients/{id}/kick` and
+  `GET /stats`. It can kick clients, so bind it to loopback and set a
+  token before exposing it.
+
+## 11. Hardening
 
 - Run with `--masquerade` (add it to the unit's `ExecStart` line, e.g.
   `ExecStart=/opt/wow/venv/bin/wow-server --masquerade`) so failed auth

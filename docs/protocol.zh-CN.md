@@ -35,7 +35,9 @@ WoW 是一个 L3（IP 层）VPN，基于 TLS 加密的 TCP 连接传输，工作
 +---------+-------------------+
 ```
 
-`Success` 为 1 表示 token 被接受，为 0 表示被拒绝。`ID` 是服务端
+`Success` 为 1 表示 token 被接受，为 0 表示被拒绝（开启
+`--masquerade` 时，认证失败的连接也会收到假成功——见
+[authentication.md](authentication.md)）。`ID` 是服务端
 认证处理器选定的 128-bit 连接级 id（管理 API 用它定位连接）。认证
 成功后服务端紧接着发送 Type 5 IPv4 分配和 Type 6 IPv6 分配两个报文，
 携带隧道地址。
@@ -47,7 +49,8 @@ WoW 是一个 L3（IP 层）VPN，基于 TLS 加密的 TCP 连接传输，工作
 ### Type 3 Ping
 
 无报文体。客户端周期性（每 5 秒）发送，用于穿越 NAT/防火墙中间设备
-保持 TCP 连接存活，并检测死连接。
+保持 TCP 连接存活；服务端回 Pong，客户端也用它测量往返延迟。死连接
+通过 TCP 层失败暴露，而不是缺失 Pong。
 
 ### Type 4 Pong
 

@@ -121,7 +121,8 @@ ss -tlnp | grep 443
 journalctl -u wow-server -f
 ```
 
-应能看到 `Server listening on 0.0.0.0:443`。
+应能看到 `Server listening on 0.0.0.0:443 (v4)`；默认双栈下还会多
+一行 `(v6)` 的监听日志（`[::]:443`）。
 
 ## 7. 连接客户端
 
@@ -156,9 +157,9 @@ curl -4 https://api.ipify.org   # 经隧道的公网 IPv4
 curl -6 https://api6.ipify.org  # 经隧道的公网 IPv6
 ```
 
-客户端在共享网关 TUN 上按扁平地址分配：第 N 个客户端拿到
-`10.8.0.(N+1)/24` 和 `prefix::(N+1)`（第 1 个客户端即 `10.8.0.2` /
-`fd08::2`；网关本身是 `10.8.0.1` / `fd08::1`）。
+客户端在共享网关 TUN 上按扁平地址分配：IPv4 顺序发放（第 1 个客户端
+即 `10.8.0.2`，随后 `10.8.0.3`……），IPv6 则从前缀中随机挑选（网关
+本身是 `10.8.0.1` / `fd08::1`）。
 
 ## 9. 公网 IPv6（可选）
 
@@ -170,12 +171,13 @@ curl -6 https://api6.ipify.org  # 经隧道的公网 IPv6
 WOW_IPV6_PREFIX=2001:db8:1:2::/64
 ```
 
-（或用命令行参数 `--ipv6-prefix`）。此时 NAT66 会自动关闭，客户端以
-自己的全局地址访问公网——真正的端到端 IPv6，没有 NAT。
+（或用命令行参数 `--ipv6-prefix`）。换成真正可路由的全局前缀后，
+NAT66 会自动关闭，客户端以自己的全局地址访问公网——真正的端到端
+IPv6，没有 NAT。
 
-> `2001:db8::/32` 是 RFC 3849 的文档保留段，仅作占位示例——请换成
-> 提供商给你的真实公网前缀。非全局前缀（ULA、文档段）NAT66 保持
-> 开启，只有真正可路由的段才会自动关闭。
+> `2001:db8::/32` 是 RFC 3849 的文档保留段，仅作占位示例——照抄该
+> 示例**不会**关闭 NAT66。非全局前缀（ULA、文档段）NAT66 保持开启，
+> 只有换成提供商给你的真实全局前缀后才会自动关闭。
 
 按提供商情况分两种：
 
@@ -189,7 +191,21 @@ WOW_IPV6_PREFIX=2001:db8:1:2::/64
 
 然后从另一台主机 ping 客户端地址验证。
 
-## 10. 安全加固
+## 10. 可选功能
+
+- **闲置自动关机**：`WOW_IDLE_SCRIPT=/path/to/idle.py`（或
+  `--idle-script`）配合 `WOW_IDLE_TIMER`（默认 600 秒），服务端连续
+  无客户端达到该时长后调用脚本里的 `idle_callback()`。典型用途是
+  闲置时自动关机省钱。
+- **IPv6 隐私轮换**：`WOW_IPV6_ROTATE_INTERVAL`（默认 3600 秒，0
+  关闭）按周期给每个客户端重新分配一个随机 IPv6 地址。地址是替换
+  而非新增，因此每次轮换都会断开现有连接。
+- **管理 API**：`WOW_API_HOST`（默认 `127.0.0.1`）/ `WOW_API_PORT`
+  （默认 8000，0 关闭）/ `WOW_API_TOKEN`，提供 `GET /health`、
+  `GET /clients`、`POST /clients/{id}/kick` 和 `GET /stats`。API 可以
+  踢掉客户端，务必绑定回环地址并设置 token 再对外暴露。
+
+## 11. 安全加固
 
 - 加 `--masquerade`（在 unit 的 `ExecStart` 行末尾追加，例如
   `ExecStart=/opt/wow/venv/bin/wow-server --masquerade`）：认证失败

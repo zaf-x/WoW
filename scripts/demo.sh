@@ -43,12 +43,13 @@ trap cleanup EXIT
 openssl req -x509 -newkey rsa:2048 -nodes \
     -keyout "$KEY" -out "$CERT" -days 1 \
     -subj "/CN=wow-demo" \
-    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" >/dev/null 2>&1
+    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+    -addext "basicConstraints=critical,CA:TRUE" >/dev/null 2>&1
 
 echo "== WoW demo: 127.0.0.1:$PORT, egress iface $IFACE =="
 echo "token: $TOKEN"
 
-wow-server --host 0.0.0.0 --port "$PORT" --token "$TOKEN" --iface "$IFACE" \
+wow-server --host-ipv4 0.0.0.0 --port "$PORT" --token "$TOKEN" --iface "$IFACE" \
            --cert "$CERT" --key "$KEY" &
 SERVER_PID=$!
 sleep 1

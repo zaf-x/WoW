@@ -37,9 +37,11 @@ Client Application -> TUN -----TCP + TLS-----> Server -> TUN -> Physical interfa
 +---------+-------------------+
 ```
 
-`Success` is 1 when the token is accepted, 0 otherwise. `ID` is a
-128-bit per-connection id chosen by the server's auth handler (used by
-the management API to address the connection). On success the server
+`Success` is 1 when the token is accepted, 0 otherwise (with
+`--masquerade`, failed auth also gets a fake success — see
+[authentication.md](authentication.md)). `ID` is a 128-bit
+per-connection id chosen by the server's auth handler (used by the
+management API to address the connection). On success the server
 immediately follows with a Type 5 IPv4 Assign and a Type 6 IPv6 Assign
 packet carrying the tunnel addresses.
 
@@ -50,8 +52,9 @@ Just IP Data
 ### Type 3 Ping
 
 No body. Sent by the client periodically (every 5s) to keep the TCP
-connection alive across NAT/firewall middleboxes and to detect dead
-connections.
+connection alive across NAT/firewall middleboxes; the server replies
+with a Pong, which the client also uses to measure round-trip delay. A
+dead peer surfaces as a TCP-level failure rather than a missing Pong.
 
 ### Type 4 Pong
 
