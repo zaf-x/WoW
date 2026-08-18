@@ -6,7 +6,7 @@ import asyncio
 import random
 import ssl
 from typing import Callable
-from wow_common.protocol import Raw, unpack, PacketType, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, ApplicationData, Ping, Pong  # type: ignore
+from wow_common.protocol import unpack, PacketType, Authentication, AuthenticationResponse, IPv4Assign, IPv6Assign, ApplicationData, Ping, Pong  # type: ignore
 from wow_common.tun import Tun # type: ignore
 import rich
 
@@ -55,31 +55,39 @@ class Server:
         addr_map: Maps ``(family, address)`` to the client owning that address.
     """
 
-    def __init__(self, host: str, port: int, auth_handler: Callable[[int], tuple[bool, int]], interface: str, cert: str, key: str, masquerade: bool = False, ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False, idle_callback: Callable[[], None] | None = None, idle_timer: int = 600, ipv6_rotate_interval: int = 3600):
+    def __init__(self, host: str, port: int, interface: str,
+                 auth_handler: Callable[[int], tuple[bool, int]],
+                 cert: str, key: str, *,
+                 ipv6_prefix: str = "fd08::/64", proxy_ndp: bool = False,
+                 ipv6_rotate_interval: int = 3600, masquerade: bool = False,
+                 idle_callback: Callable[[], None] | None = None, idle_timer: int = 600):
         """Initialize the server.
 
         Args:
             host: Listen address.
             port: Listen port.
-            token: The shared 128-bit authentication token as an integer.
             interface: Physical egress interface used for NAT, e.g. ``"ens5"``.
+            auth_handler: The handler of authentication, accepts a 128-bit
+                authentication token as an integer and returns
+                ``(success, remote_id)``.
             cert: Path to the TLS certificate file.
             key: Path to the TLS private key file.
-            masquerade: Silently drop bad auth instead of replying.
             ipv6_prefix: IPv6 tunnel network in CIDR form. Defaults to the
                 ULA ``fd08::/64``; use a global prefix (e.g. a provider
                 routed ``/64``) to hand clients public IPv6 addresses.
             proxy_ndp: Proxy-NDP for client addresses on the physical
                 interface. Needed for on-link IPv6 prefixes such as AWS
                 EC2, where the instance owns a single /128 of the subnet.
+            ipv6_rotate_interval: Seconds between reassigning each client
+                a fresh random IPv6 address from the tunnel prefix
+                (privacy rotation; default 3600, 0 disables).
+            masquerade: Reply to bad auth with a fake success, then drop
+                the connection's traffic (camouflage).
             idle_callback: Optional callable run when the server has had
                 no clients for ``idle_timer`` seconds (e.g. auto-shutdown
                 of an unused instance).
             idle_timer: Seconds without clients before ``idle_callback``
                 fires (default 600).
-            ipv6_rotate_interval: Seconds between reassigning each client
-                a fresh random IPv6 address from the tunnel prefix
-                (privacy rotation; default 3600, 0 disables).
         """
         self.host = host
         self.port = port

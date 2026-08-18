@@ -146,7 +146,7 @@ def main() -> None:
             print("E: invalid script: must provide `idle_callback` function")
             exit(1)
 
-    server = Server(args.host, args.port, auth_handler, args.iface,
+    server = Server(args.host, args.port, args.iface, auth_handler,
                     args.cert, args.key, masquerade=args.masquerade,
                     ipv6_prefix=args.ipv6_prefix, proxy_ndp=args.ipv6_proxy_ndp,
                     idle_callback=idle_callback, idle_timer=args.idle_timer,
