@@ -9,12 +9,18 @@
 [![wow-server](https://img.shields.io/pypi/v/wow-server.svg?label=wow-server)](https://pypi.org/project/wow-server)
 [![CI](https://github.com/zaf-x/WoW/actions/workflows/ci.yml/badge.svg)](https://github.com/zaf-x/WoW/actions/workflows/ci.yml)
 
-一个轻量级 Linux L3 VPN：IP 数据包通过 TLS 加密的 TCP 隧道，在客户端与
-服务端的 TUN 设备之间传输。
+## 这个项目是啥
+
+WoW（"Wire over Wire"）是一个轻量级 Linux L3 VPN：IP 数据包通过 TLS
+加密的 TCP 隧道，在客户端与服务端的 TUN 设备之间传输。无需内核模块——
+一切都在用户态运行，基于标准 TUN 接口。
 
 ```
 客户端应用 -> TUN ---- TCP + TLS ----> 服务端 -> TUN -> 物理网卡
 ```
+
+采用经典的客户端-服务端设计：服务端终结隧道并转发客户端流量，客户端创建
+本地 TUN 设备把流量导入隧道。开始使用见 [安装](#安装)。
 
 ## 特性
 
@@ -27,128 +33,42 @@
 - **策略路由**，用 `fwmark` 旁路让 VPN 自身流量不回流进隧道
 - 通过隧道绑定 **DNS**（`resolvectl`）
 - **实时状态面板**：上下行速率、客户端↔服务端与客户端↔公网延迟
+- **管理 API**（FastAPI），用于监控与踢出客户端
 
-## 仓库结构
+## 安装
 
-| 包 | 作用 |
+需要 Linux、Python 3.10+ 和 root（TUN 设备 + iptables）。
+
+```bash
+# 服务端
+pip install wow-server
+
+# 客户端
+pip install wow-client
+```
+
+从源码安装（开发用）：
+
+```bash
+git clone https://github.com/zaf-x/WoW.git && cd WoW
+python3 -m venv .venv && . .venv/bin/activate
+pip install ./wow-common ./wow-server    # 服务端
+pip install ./wow-common ./wow-client    # 客户端
+```
+
+安装后 `wow-server` 和 `wow-client` 命令会进入 PATH（`wow-common`
+作为依赖自动安装）。两个包都已发布到 PyPI——见上方徽章。
+
+## 文档目录
+
+| 文档 | 说明 |
 | --- | --- |
-| `wow-client` | VPN 客户端：连接服务端、创建本地 TUN 设备并把流量导入隧道 |
-| `wow-server` | VPN 服务端：认证客户端、分配隧道地址并为其流量做 NAT |
-| `wow-common` | 共享代码：线上协议封装与 TUN 设备封装 |
-
-线上协议规范见 [docs/protocol.md](docs/protocol.md)。
-
-## 一键体验
-
-克隆仓库并运行演示脚本——它会自动生成自签证书和随机 token，然后在同一台
-机器上启动服务端和客户端：
-
-```bash
-git clone https://github.com/zaf-x/WoW.git && cd WoW
-pip install wow-common wow-client wow-server
-sudo bash scripts/demo.sh
-```
-
-客户端实时状态面板在前台运行；按 Ctrl+C 退出（服务端会自动停止）。
-需要 Linux 和 root（TUN 设备 + iptables）。
-
-## 快速开始
-
-### 服务端
-
-需要 Linux、root、`/dev/net/tun` 和 TLS 证书。可以从 PyPI 安装，或
-从源码安装用于开发：
-
-```bash
-# 从 PyPI 安装
-pip install wow-common wow-server
-```
-
-```bash
-# 从源码安装
-git clone https://github.com/zaf-x/WoW.git && cd WoW
-python3 -m venv .venv && . .venv/bin/activate
-pip install ./wow-common ./wow-server
-```
-
-启动服务端：
-
-```bash
-wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
-           --token-file /etc/wow/tokens.secret --iface eth0 \
-           --cert cert.pem --key key.pem
-```
-
-选项也可以通过 `WOW_*` 环境变量或可选的 TOML 配置文件设置（`--config`，
-默认 `/etc/wow/config.toml`，模板见
-[`templates/config.toml`](templates/config.toml)）。优先级为
-命令行参数 > TOML > 环境变量 > 默认值。环境变量有
-（`WOW_HOST_IPV4`、`WOW_HOST_IPV6`、`WOW_PORT`、`WOW_TOKEN_FILE`、
-`WOW_IFACE`、`WOW_CERT`、`WOW_KEY`、`WOW_IPV6_PREFIX`、
-`WOW_IPV6_PROXY_NDP`、`WOW_AUTH_SCRIPT`、
-`WOW_MASQUERADE`、`WOW_IDLE_SCRIPT`、`WOW_IDLE_TIMER`、
-`WOW_IPV6_ROTATE_INTERVAL`、`WOW_API_HOST`、`WOW_API_PORT`、
-`WOW_API_TOKEN`、`WOW_VERBOSE`）。
-
-- `--masquerade`：对错误认证回复假成功，随后静默丢弃其流量
-- `--auth-script auth.py`：使用导出
-  `auth_handler(token: int) -> tuple[bool, int]` 的 Python 文件做
-  自定义认证（返回判定结果与稳定的 remote id）
-- `--idle-script idle.py --idle-timer 600`：当服务端在指定秒数内没有
-  任何客户端时，运行 Python 文件里的 `idle_callback()`——例如闲置实例
-  自动关机
-- `--ipv6-rotate-interval 3600`：每隔指定秒数为每个客户端从隧道前缀
-  重新分配一个随机 IPv6 地址（隐私轮换；默认 1 小时，0 关闭；仅全局
-  前缀生效——ULA/NAT66 不轮换）。地址更换会断开现有连接，相当于换
-  了一次公网 IP。
-- `--api-host 127.0.0.1 --api-port 8000 --api-token <secret>`：在同一
-  事件循环上提供管理 API（FastAPI）：`GET /health`、`GET /clients`、
-  `POST /clients/{id}/kick`、`GET /stats`。端口为 0 时关闭；建议只绑
-  回环地址和/或设置 bearer token——该 API 能踢掉在线客户端。
-  `--api-cors`（默认 `*`）列出允许调用 API 的浏览器来源——独立的
-  [wow-mgmt-dashboard](https://github.com/zaf-x/wow-mgmt-dashboard)
-  面板就是用它。
-
-完整的生产环境部署（systemd、TLS、安全加固）见
-[docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)。
-
-### 客户端
-
-需要 Linux 和 root（TUN 设备 + 延迟探测用的原始 ICMP socket）。
-
-```bash
-# 从 PyPI 安装
-pip install wow-common wow-client
-```
-
-```bash
-# 从源码安装
-git clone https://github.com/zaf-x/WoW.git && cd WoW
-python3 -m venv .venv && . .venv/bin/activate
-pip install ./wow-common ./wow-client
-```
-
-```bash
-# 直接连接（用 -c ca.pem 信任自定义 CA）
-sudo wow-client start -s vpn.example.com -p 9999 -t <32位hex>
-
-# 把服务器存成命名配置，再交互式选择
-sudo wow-client save myserver -s vpn.example.com -p 9999 -t <32位hex>
-sudo wow-client launch
-```
-
-> 若 `sudo` 提示 `wow-client: command not found`，说明可执行文件不在
-> sudo 的 PATH 里（例如 pipx 或 `--user` 装到了 `~/.local/bin`）——
-> 改用 `sudo "$(which wow-client)" ...`。
-
-## 安全说明
-
-- 每个用户使用 128-bit token（32 位 hex），在 TLS 会话内传输，
-  暴力破解不可行。
-- 用 `--masquerade` 启动服务端，可以让未认证的扫描器看到一个
-  "开着但无用"的端口。
-- 需要按客户端做策略、限流或日志时，使用 `--auth-script`。可插拔
-  认证 API 见 [docs/authentication.zh-CN.md](docs/authentication.zh-CN.md)。
+| [wow-client/README.md](wow-client/README.md) | 客户端 CLI、参数与用法（[中文](wow-client/README.zh-CN.md)） |
+| [wow-server/README.md](wow-server/README.md) | 服务端 CLI、参数与用法（[中文](wow-server/README.zh-CN.md)） |
+| [wow-common/README.md](wow-common/README.md) | 共享库：线上协议封装、TUN 设备封装（[中文](wow-common/README.zh-CN.md)） |
+| [docs/protocol.md](docs/protocol.md) | 线上协议规范（[中文](docs/protocol.zh-CN.md)） |
+| [docs/authentication.md](docs/authentication.md) | 可插拔认证 API（[中文](docs/authentication.zh-CN.md)） |
+| [docs/deployment.md](docs/deployment.md) | 生产环境部署：systemd、TLS、安全加固（[中文](docs/deployment.zh-CN.md)） |
 
 ## License
 

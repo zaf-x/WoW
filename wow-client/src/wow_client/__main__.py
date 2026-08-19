@@ -27,7 +27,7 @@ async def run_client(client: Client):
     """Run the client until interrupted, always stopping cleanly."""
     try:
         await client.run()
-    except (asyncio.IncompleteReadError, ConnectionError, ssl.SSLError, OSError) as exc:
+    except (asyncio.IncompleteReadError, ConnectionError, ssl.SSLError, OSError, ValueError) as exc:
         # Server dropped the connection or the TLS handshake failed; report it
         # without a traceback. KeyboardInterrupt is handled outside asyncio.run.
         print(f"Connection failed: {exc}")

@@ -80,8 +80,10 @@ class Server:
                 ULA ``fd08::/64``; use a global prefix (e.g. a provider
                 routed ``/64``) to hand clients public IPv6 addresses.
             proxy_ndp: Proxy-NDP for client addresses on the physical
-                interface. Needed for on-link IPv6 prefixes such as AWS
-                EC2, where the instance owns a single /128 of the subnet.
+                interface. Needed when the tunnel prefix is on-link but
+                not routed to the instance (e.g. an EC2 ENI holding only
+                its own /128); unnecessary when AWS routes the prefix to
+                the ENI itself (prefix delegation or a route entry).
             ipv6_rotate_interval: Seconds between reassigning each client
                 a fresh random IPv6 address from the tunnel prefix
                 (privacy rotation; default 3600, 0 disables; only applies

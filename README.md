@@ -9,12 +9,21 @@
 [![wow-server](https://img.shields.io/pypi/v/wow-server.svg?label=wow-server)](https://pypi.org/project/wow-server)
 [![CI](https://github.com/zaf-x/WoW/actions/workflows/ci.yml/badge.svg)](https://github.com/zaf-x/WoW/actions/workflows/ci.yml)
 
-A lightweight L3 VPN for Linux: IP packets travel between a client-side
-and a server-side TUN device over a TLS-encrypted TCP tunnel.
+## What is this?
+
+WoW ("Wire over Wire") is a lightweight L3 VPN for Linux: IP packets
+travel between a client-side and a server-side TUN device over a
+TLS-encrypted TCP tunnel. No kernel modules — everything runs in
+userspace on top of the standard TUN interface.
 
 ```
 Client App -> TUN ---- TCP + TLS ----> Server -> TUN -> Physical interface
 ```
+
+It follows a classic server-client design: the server terminates the
+tunnel and routes client traffic, the client creates a local TUN device
+and pulls its traffic through. See [Installation](#installation) to get
+started.
 
 ## Features
 
@@ -22,139 +31,51 @@ Client App -> TUN ---- TCP + TLS ----> Server -> TUN -> Physical interface
 - **Dual-stack**: IPv4 (`10.8.0.0/24`) and IPv6 tunnel networks — ULA
   `fd08::/64` by default, or a public prefix for global IPv6 addresses
 - **128-bit token authentication**, with pluggable custom auth handlers
-- **Masquerade mode**: answers bad auth attempts with a fake success, then silently drops their traffic
+- **Masquerade mode**: answers bad auth attempts with a fake success,
+  then silently drops their traffic
 - **NAT** for client traffic via `iptables` / `ip6tables`
-- **Policy routing** with a `fwmark` bypass so the VPN's own traffic does not loop back into the tunnel
+- **Policy routing** with a `fwmark` bypass so the VPN's own traffic does
+  not loop back into the tunnel
 - **DNS binding** through the tunnel (`resolvectl`)
-- **Live status panel**: transfer rates, client↔server and client↔internet latency
+- **Live status panel**: transfer rates, client↔server and
+  client↔internet latency
+- **Management API** (FastAPI) for monitoring and kicking clients
 
-## Repository layout
+## Installation
 
-| Package | Purpose |
+Requires Linux, Python 3.10+ and root (TUN device + iptables).
+
+```bash
+# server
+pip install wow-server
+
+# client
+pip install wow-client
+```
+
+For development, install from source:
+
+```bash
+git clone https://github.com/zaf-x/WoW.git && cd WoW
+python3 -m venv .venv && . .venv/bin/activate
+pip install ./wow-common ./wow-server    # server
+pip install ./wow-common ./wow-client    # client
+```
+
+This puts the `wow-server` and `wow-client` commands on your PATH
+(`wow-common` is pulled in automatically as a dependency). Both
+packages are published on PyPI — see the badges above.
+
+## Documentation
+
+| Document | Description |
 | --- | --- |
-| `wow-client` | VPN client: connects to the server, sets up the local TUN device and routes traffic through the tunnel |
-| `wow-server` | VPN server: authenticates clients, assigns tunnel addresses and NATs their traffic |
-| `wow-common` | Shared code: wire protocol framing and the TUN device wrapper |
-
-See [docs/protocol.md](docs/protocol.md) for the wire protocol specification.
-
-## Try it in one command
-
-Clone the repo and run the demo script — it generates a self-signed
-certificate and a random token, then starts the server and a client on
-the same machine:
-
-```bash
-git clone https://github.com/zaf-x/WoW.git && cd WoW
-pip install wow-common wow-client wow-server
-sudo bash scripts/demo.sh
-```
-
-The client's live status panel runs in the foreground; press Ctrl+C to
-quit (the server is stopped automatically). Requires Linux and root
-(TUN device + iptables).
-
-## Quick start
-
-### Server
-
-Requires Linux, root, `/dev/net/tun` and a TLS certificate. Install from
-PyPI, or from source for development:
-
-```bash
-# from PyPI
-pip install wow-common wow-server
-```
-
-```bash
-# from source
-git clone https://github.com/zaf-x/WoW.git && cd WoW
-python3 -m venv .venv && . .venv/bin/activate
-pip install ./wow-common ./wow-server
-```
-
-Run the server:
-
-```bash
-wow-server --host-ipv4 0.0.0.0 --host-ipv6 :: --port 9999 \
-           --token-file /etc/wow/tokens.secret --iface eth0 \
-           --cert cert.pem --key key.pem
-```
-
-Options can also come from a `WOW_*` environment variable or an optional
-TOML config file (`--config`, default `/etc/wow/config.toml`; template:
-[`templates/config.toml`](templates/config.toml)). Precedence is
-command-line flag > TOML > env > default. The env variables are
-(`WOW_HOST_IPV4`, `WOW_HOST_IPV6`, `WOW_PORT`, `WOW_TOKEN_FILE`,
-`WOW_IFACE`, `WOW_CERT`, `WOW_KEY`, `WOW_IPV6_PREFIX`,
-`WOW_IPV6_PROXY_NDP`, `WOW_AUTH_SCRIPT`, `WOW_MASQUERADE`,
-`WOW_IDLE_SCRIPT`, `WOW_IDLE_TIMER`, `WOW_IPV6_ROTATE_INTERVAL`,
-`WOW_API_HOST`, `WOW_API_PORT`, `WOW_API_TOKEN`, `WOW_VERBOSE`).
-
-- `--masquerade`: reply to bad auth attempts with a fake success, then
-  silently drop their traffic
-- `--auth-script auth.py`: plug in a Python file exporting
-  `auth_handler(token: int) -> tuple[bool, int]` for custom
-  authentication (verdict, stable remote id)
-- `--idle-script idle.py --idle-timer 600`: run `idle_callback()` from a
-  Python file once the server has had no clients for the given number of
-  seconds — e.g. auto-shutdown of an unused instance
-- `--ipv6-rotate-interval 3600`: reassign every client a new random IPv6
-  address from the tunnel prefix on this interval (privacy rotation;
-  default 1 hour, 0 disables; global prefixes only — ULA/NAT66 never
-  rotate). The address swap drops existing connections, like renewing a
-  public IP.
-- `--api-host 127.0.0.1 --api-port 8000 --api-token <secret>`: management
-  API (FastAPI) served on the same event loop: `GET /health`,
-  `GET /clients`, `POST /clients/{id}/kick`, `GET /stats`. Port 0
-  disables it; keep it on loopback and/or set a bearer token, since it
-  can kick connected clients. `--api-cors` (default `*`) lists the
-  browser origins allowed to call the API — the web dashboard in the
-  separate [wow-mgmt-dashboard](https://github.com/zaf-x/wow-mgmt-dashboard)
-  project uses this.
-
-For a full production setup (systemd, TLS, hardening), see
-[docs/deployment.md](docs/deployment.md).
-
-### Client
-
-Requires Linux and root (TUN device + raw ICMP socket for the latency
-probe).
-
-```bash
-# from PyPI
-pip install wow-common wow-client
-```
-
-```bash
-# from source
-git clone https://github.com/zaf-x/WoW.git && cd WoW
-python3 -m venv .venv && . .venv/bin/activate
-pip install ./wow-common ./wow-client
-```
-
-```bash
-# connect directly (trust a custom CA with -c ca.pem)
-sudo wow-client start -s vpn.example.com -p 9999 -t <32-hex-chars>
-
-# save servers as named profiles, then pick one interactively
-sudo wow-client save myserver -s vpn.example.com -p 9999 -t <32-hex-chars>
-sudo wow-client launch
-```
-
-> If `sudo` reports `wow-client: command not found`, the binary lives
-> outside sudo's PATH (e.g. a pipx or `--user` install in `~/.local/bin`) —
-> run `sudo "$(which wow-client)" ...` instead.
-
-## Security notes
-
-- Authentication uses a 128-bit token (32 hex chars) per user, exchanged
-  inside the TLS session; brute-forcing it is infeasible.
-- Run the server with `--masquerade` to make it behave like a live but
-  useless endpoint to unauthenticated scanners.
-- For per-client policies, rate limiting or logging, use
-  `--auth-script`. See [docs/authentication.md](docs/authentication.md)
-  for the pluggable authentication API.
+| [wow-client/README.md](wow-client/README.md) | Client CLI, options and usage |
+| [wow-server/README.md](wow-server/README.md) | Server CLI, options and usage |
+| [wow-common/README.md](wow-common/README.md) | Shared library: wire protocol framing, TUN wrapper |
+| [docs/protocol.md](docs/protocol.md) | Wire protocol specification ([中文](docs/protocol.zh-CN.md)) |
+| [docs/authentication.md](docs/authentication.md) | Pluggable authentication API ([中文](docs/authentication.zh-CN.md)) |
+| [docs/deployment.md](docs/deployment.md) | Production deployment: systemd, TLS, hardening ([中文](docs/deployment.zh-CN.md)) |
 
 ## License
 

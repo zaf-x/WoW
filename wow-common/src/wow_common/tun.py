@@ -267,7 +267,7 @@ class Tun:
         (e.g. no ip6tables on the host) are treated as nothing to clean.
         """
         try:
-            while subprocess.run(cmd, check=False).returncode == 0:
+            while subprocess.run(cmd, check=False, stderr=subprocess.DEVNULL).returncode == 0:
                 pass
         except OSError:
             return
@@ -371,9 +371,11 @@ class Tun:
     def setup_proxy_ndp(self, out_iface: str, addr: str) -> None:
         """Answer NDP on ``out_iface`` for an address not assigned to any interface.
 
-        Needed for on-link IPv6 prefixes (e.g. AWS EC2): the instance owns
-        a single /128 from the subnet's /64, so the kernel must proxy-NDP
-        for the client addresses it forwards.
+        Needed when the tunnel prefix is on-link to the host but not
+        routed to it (e.g. an AWS EC2 ENI that owns only its own /128 of
+        the subnet's /64). If the prefix is routed to the host instead
+        (ENI prefix delegation or a route-table entry), this is
+        unnecessary.
 
         Args:
             out_iface: Physical egress interface, e.g. ``"ens5"``.
