@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/wow-server.svg)](https://pypi.org/project/wow-server)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-server.svg)](https://pypi.org/project/wow-server)
 
-[English](https://github.com/zaf-x/WoW/blob/main/wow-server/README.md) | [中文](https://github.com/zaf-x/WoW/blob/main/wow-server/README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 The server for the [WoW VPN](https://github.com/zaf-x/WoW) project
 (https://github.com/zaf-x/WoW). Accepts TLS clients, authenticates them

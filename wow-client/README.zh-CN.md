@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/wow-client.svg)](https://pypi.org/project/wow-client)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-client.svg)](https://pypi.org/project/wow-client)
 
-[English](https://github.com/zaf-x/WoW/blob/main/wow-client/README.md) | [中文](https://github.com/zaf-x/WoW/blob/main/wow-client/README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 [WoW VPN](https://github.com/zaf-x/WoW) 项目的客户端（https://github.com/zaf-x/WoW）。
 通过 TLS 连接服务端，使用 128-bit token 认证，创建本地 TUN 设备并把流量导入

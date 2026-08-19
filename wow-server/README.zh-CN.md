@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/wow-server.svg)](https://pypi.org/project/wow-server)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/wow-server.svg)](https://pypi.org/project/wow-server)
 
-[English](https://github.com/zaf-x/WoW/blob/main/wow-server/README.md) | [中文](https://github.com/zaf-x/WoW/blob/main/wow-server/README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 [WoW VPN](https://github.com/zaf-x/WoW) 项目的服务端（https://github.com/zaf-x/WoW）。
 接受 TLS 客户端，使用 token 文件（或自定义认证脚本）认证，创建一张网关 TUN
