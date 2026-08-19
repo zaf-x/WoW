@@ -304,11 +304,16 @@ class Tun:
             check=True,
         )
         subprocess.run(
-            ["iptables", "-A", "FORWARD", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
+            # Insert at the head of FORWARD: ufw's chain ends in a default
+            # REJECT of all routed traffic, so an appended ACCEPT (which
+            # lands after ufw-reject-forward) would never match. Head
+            # insertion keeps the tunnel egress ahead of any firewall
+            # policy chain.
+            ["iptables", "-I", "FORWARD", "1", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
             check=True,
         )
         subprocess.run(
-            ["iptables", "-A", "FORWARD", "-i", out_iface, "-o", self.name,
+            ["iptables", "-I", "FORWARD", "2", "-i", out_iface, "-o", self.name,
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
             check=True,
         )
@@ -324,8 +329,8 @@ class Tun:
                 ["ip6tables", "-t", "nat", "-D", "POSTROUTING", "-o", out_iface, "-j", "MASQUERADE"]
             )
         ip6_cmds += [
-            ["ip6tables", "-A", "FORWARD", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
-            ["ip6tables", "-A", "FORWARD", "-i", out_iface, "-o", self.name,
+            ["ip6tables", "-I", "FORWARD", "1", "-i", self.name, "-o", out_iface, "-j", "ACCEPT"],
+            ["ip6tables", "-I", "FORWARD", "2", "-i", out_iface, "-o", self.name,
              "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
         ]
         for cmd in ip6_cmds:
